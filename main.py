@@ -3,14 +3,17 @@
 Команда для запуска: uvicorn main:app --reload
 """
 
+import datetime
 import os
+import random
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-import dlltool
 import db as database
 import logging
 from typing import Optional
 import asyncio
+import lava_api
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -32,7 +35,8 @@ class InvoiceStatusRequest(BaseModel):
 
 
 app = FastAPI(docs_url=None, redoc_url=None)    # docs_url и redoc_url отключают автоматическую документацию
-TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiIxZmQwZDZlYi02YjZlLTVkYjYtM2IzYS1lNzk0ZmJlZTRiMGYiLCJ0aWQiOiI5OGRiMjU5MC1hYTdjLWFiMWMtYjZjZi00OTFiMDA2ZTE5OTUifQ.Bln00GAHp5ixo8F8FXOAd9alZAgAsCwegKapdkSxzGA"
+#SECRET_KEY = "234567899"
+SECRET_KEY = "1ffe6afc-01aa-4da9-b1e7-6f2ce521e506"
 WALLET = "R10031991"
 db = database.DatabaseManager("database.sqlite3")    # экземпляр класса для доступа к данным из БД.
 
@@ -71,7 +75,7 @@ async def withdraw(user: database.UserInfo, amount: int) -> None:
             "amount": f"{amount * (user.percent / 100):.2f}"
         }
         logger.info(f"Sended transfer request with fields: {fields}")
-        response = dlltool.send("https://api.lava.ru/transfer/create", "POST", {"Authorization": TOKEN},
+        response = dlltool.send("https://api.lava.ru/transfer/create", "POST", {"Authorization": SECRET_KEY},
                                 fields)  # отправка данных в API (см. описание модуля)
 
     # иначе создаем вывод средств
@@ -84,7 +88,7 @@ async def withdraw(user: database.UserInfo, amount: int) -> None:
             "wallet_to": user.withdraw_wallet
         }
         logger.info(f"Sended withdraw request with fields: {fields}")
-        response = dlltool.send("https://api.lava.ru/withdraw/create", "POST", {"Authorization": TOKEN},
+        response = dlltool.send("https://api.lava.ru/withdraw/create", "POST", {"Authorization": SECRET_KEY},
                                 fields)  # отправка данных в API (см. описание модуля)
 
     if (status := response.get("status", "error")) != "success":
@@ -116,7 +120,7 @@ async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
 
     logger.debug(f"Sending invoice status request with fields: {fields}")
 
-    response = dlltool.send("https://api.lava.ru/invoice/info", "POST", {"Authorization": TOKEN}, fields)    # отправка данных в API (см. описание модуля)
+    response = dlltool.send("https://api.lava.ru/invoice/info", "POST", {"Authorization": SECRET_KEY}, fields)    # отправка данных в API (см. описание модуля)
 
     logger.debug(f"Got response: {response}")
 
@@ -167,6 +171,16 @@ async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
         }
 
 
+def generate_invoice_id(user_name: str) -> str:
+    """
+    Генерирует уникальный идентификатор счета
+
+    :param user_name: Имя продавца, который выставляет счет
+    :return: SHA256 хеш
+    """
+
+    return f"{user_name}-{datetime.datetime.now().strftime('%d-%m-%Y-%H-%M-%S')}-{random.randint(0, 256)}"
+
 @app.post("/payment_service/create_invoice/")
 async def create_invoice(invoice_request: CreateInvoiceRequest):
     """
@@ -193,25 +207,16 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
             "message": "Invalid user token"
         }
 
-    # см. https://dev.lava.ru/invoicecreate
-    fields = {
-        "wallet_to": WALLET,
-        "sum": f"{invoice_request.amount:.2f}",
-        "expire": "600",
-        "merchant_id": user.name
-    }
-
-    logger.debug(f"Sending create invoice request with fields: {fields}")
-
-    response = dlltool.send("https://api.lava.ru/invoice/create", "POST", {"Authorization": TOKEN}, fields)    # отправка данных в API (см. описание модуля)
-
-    logger.debug(f"Got response: {response}")
-
+    response = lava_api.create_invoice(SECRET_KEY,
+                                       invoice_request.amount,
+                                       generate_invoice_id(user.name),
+                                       SECRET_KEY)
+    print(response)
     # счет успешно выставлен
     if (status := response.get("status", "error")) == "success":
-
-        logger.info(f"Invoice created successfully: id = {response.get('id', 'UNDEFINED')}; "
-                    f"sum = {invoice_request.amount}; url = {response.get('url', 'UNDEFINED')}")
+        data: dict = response.get("data", {})
+        logger.info(f"Invoice created successfully: id = {data.get('id', 'UNDEFINED')}; "
+                    f"sum = {data.get('amount', 'UNDEFINED')}; url = {data.get('url', 'UNDEFINED')}")
 
         return {
             "status": status,
@@ -221,24 +226,24 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
     # ошибка при выставлении счета
     else:
 
-        logger.error(f"[API ERROR] Error while creating invoice: \nRequest fields: {fields} \nResponse: {response}")
+        logger.error(f"[API ERROR] Error while creating invoice: \nResponse: {response}")
 
         return {
             "status": status,
-            "code": response.get("code", "UNDEFINED"),
-            "message": response.get("message", "UNDEFINED")
+            "code": response.get("status", "UNDEFINED"),
+            "message": response.get("error", {"UNDEFINED": [""]})
         }
 
 
 # только для тестирования
 async def main():
-    '''test_invoice_creation_request = CreateInvoiceRequest(user_token="2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M",
+    test_invoice_creation_request = CreateInvoiceRequest(user_token="0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8",
                                                          amount=20, expire=60)
     test_invoice_response = await create_invoice(test_invoice_creation_request)
     print(test_invoice_response)
-
+    '''
     test_invoice_status_request = InvoiceStatusRequest(id=test_invoice_response.get("id", "UNDEFINED"),
-                         user_token="2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M", auto_withdraw=True)
+                         user_token="vw9NAdhy-vNB0L-hXWY7Z3TEGookB3Eg9kDDeu_hqf0", auto_withdraw=True)
 
     tryings_left = 10
     while tryings_left > 0:
@@ -252,8 +257,8 @@ async def main():
         tryings_left -= 1
         await asyncio.sleep(10)
 
-    print("RESULT: ", test_invoice_status)'''
-
+    print("RESULT: ", test_invoice_status)
+'''
     #user = db.get_user_info("2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M")
     pass
 

@@ -363,3 +363,30 @@ Response: {'id': '056288e6-01a1-d8fc-8979-a462916a58f4', 'status': 'success', 'a
 [2022-10-01 23:40:32,022: DEBUG] Sending invoice status request with fields: {'id': '0aaad74b-06c5-b30b-8179-f27890c9571c'}
 [2022-10-01 23:40:32,397: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0aaad74b-06c5-b30b-8179-f27890c9571c', 'order_id': None, 'expire': 1664688879, 'sum': '20.00', 'comment': None, 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
 [2022-10-01 23:40:32,397: INFO] Got invoice status: id = 0aaad74b-06c5-b30b-8179-f27890c9571c; status = pending;
+[2022-10-08 14:35:29,250: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
+[2022-10-08 14:36:30,616: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
+[2022-10-08 14:37:28,937: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
+[2022-10-08 14:39:35,815: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
+[2022-10-08 14:40:19,770: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
+[2022-10-08 16:39:55,640: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
+[2022-10-08 16:41:57,315: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
+[2022-10-08 16:41:57,315: ERROR] User with token 2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M not found
+[2022-10-08 16:43:38,789: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 16:45:37,909: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 16:46:08,035: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 16:47:14,721: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 17:21:49,438: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 17:22:13,380: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 17:23:17,551: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 17:26:20,178: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 17:26:20,469: ERROR] [API ERROR] Error while creating invoice: 
+Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
+[2022-10-08 17:29:12,740: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 17:29:12,998: ERROR] [API ERROR] Error while creating invoice: 
+Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
+[2022-10-08 17:34:37,006: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 17:34:37,289: ERROR] [API ERROR] Error while creating invoice: 
+Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
+[2022-10-08 18:01:14,125: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
+[2022-10-08 18:01:14,414: ERROR] [API ERROR] Error while creating invoice: 
+Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
