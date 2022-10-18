@@ -2,6 +2,11 @@
 Основной файл.
 Команда для запуска: uvicorn main:app --reload
 """
+import datetime
+
+"""
+{'invoice_id': 'b0491e7e-590e-9bea-bb64-44432f62dbdd', 'status': 'success', 'pay_time': 1665961760, 'amount': '20.00', 'order_id': None, 'pay_service': 'qiwi', 'payer_details': None, 'custom_fields': '', 'type': 1, 'credited': '19.00', 'merchant_id': 'TestPayment'}
+"""
 
 import os
 from fastapi import FastAPI
@@ -11,6 +16,7 @@ import db as database
 import logging
 from typing import Optional
 import asyncio
+from typing import Dict, Any
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -20,6 +26,8 @@ class CreateInvoiceRequest(BaseModel):
     user_token: str    # токен пользователя
     amount: int    # сумма счета
     expire: int    # время жизни счета (по каким-то причинам не работает)
+    comment: Optional[str] = Field("")   # комментарий
+    auto_withdraw: Optional[bool] = Field(True)  # авто-вывод
 
 
 class InvoiceStatusRequest(BaseModel):
@@ -28,11 +36,11 @@ class InvoiceStatusRequest(BaseModel):
     """
     user_token: str    # токен пользователя
     id: str    # айди счета, состояние которого необходимо получить
-    auto_withdraw: Optional[str] = Field(False)   # необязательный параметр. Если True, то после оплаты счета средства будут автоматически выведены
+    auto_withdraw: Optional[bool] = Field(False)   # необязательный параметр. Если True, то после оплаты счета средства будут автоматически выведены
 
 
 app = FastAPI(docs_url=None, redoc_url=None)    # docs_url и redoc_url отключают автоматическую документацию
-TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiIxZmQwZDZlYi02YjZlLTVkYjYtM2IzYS1lNzk0ZmJlZTRiMGYiLCJ0aWQiOiI5OGRiMjU5MC1hYTdjLWFiMWMtYjZjZi00OTFiMDA2ZTE5OTUifQ.Bln00GAHp5ixo8F8FXOAd9alZAgAsCwegKapdkSxzGA"
+TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiIxZmQwZDZlYi02YjZlLTVkYjYtM2IzYS1lNzk0ZmJlZTRiMGYiLCJ0aWQiOiJjNjdmYWFmMS1jYTIxLWJiMzQtOTA5Yi1lYjg1MDI1OGExOWMifQ.lkRc2IPMT2m_eWnP18fbq90J9EX1tQJzrGScrX66K-U"
 WALLET = "R10031991"
 db = database.DatabaseManager("database.sqlite3")    # экземпляр класса для доступа к данным из БД.
 
@@ -51,14 +59,15 @@ class WithdrawException(Exception):
     pass
 
 
-async def withdraw(user: database.UserInfo, amount: int) -> None:
+async def withdraw(user: database.UserInfo, amount: float, comment: str) -> None:
     """
     Выводит средства
     :param user: Информация о пользователе из БД
     :param amount: Сумма
+    :param comment: Комментарий
     :return:
     """
-
+    amount = float(amount)
     logger.info(f"Withdraw requested: user = {user.name}; service: {user.withdraw_service}; "
                 f"wallet: {user.withdraw_wallet}; amount = {amount}")
 
@@ -68,7 +77,9 @@ async def withdraw(user: database.UserInfo, amount: int) -> None:
         fields = {
             "account_from": WALLET,
             "account_to": user.withdraw_wallet,
-            "amount": f"{amount * (user.percent / 100):.2f}"
+            "amount": f"{amount * (user.percent / 100):.2f}",
+            "comment": comment
+
         }
         logger.info(f"Sended transfer request with fields: {fields}")
         response = dlltool.send("https://api.lava.ru/transfer/create", "POST", {"Authorization": TOKEN},
@@ -94,11 +105,78 @@ async def withdraw(user: database.UserInfo, amount: int) -> None:
     logger.info(f"[WITHDRAW] Withdraw request successfully created: \nRequest: {fields}; \nResponse: {response};")
 
 
+@app.post("/payment_service/webhook")
+async def webhook(data: Dict[Any, Any]):
+    logger.info(f"[WEBHOOK] Received: {data}")
+    try:
+        invoice_info = db.get_invoice_info(data.get("invoice_id", "UNDEFINED"))
+    except database.InvoiceNotFoundException:
+        return
+    if invoice_info.status != "created":
+        return
+
+    invoice_info.credited = float(data.get("credited", -1))
+    invoice_info.payed = str(datetime.datetime.now())
+    invoice_info.status = "payed"
+
+    db.save_invoice_info(invoice_info)
+
+    logger.info(f"[WEBHOOK] Invoice payed: {invoice_info.order_id} {invoice_info.creator} {invoice_info.comment}")
+
+    if invoice_info.auto_withdraw and invoice_info.credited != -1:
+        try:
+            user = db.get_user_info(invoice_info.creator)
+        except database.UserNotFoundException:
+            logger.error(f"User with token {invoice_info.creator} not found")
+            return {
+                "status": "server error",
+                "code": "-1",
+                "message": "Invalid user token"
+            }
+
+        try:
+            await withdraw(user, invoice_info.credited,
+                           invoice_info.comment)  # создание запроса на вывод средств
+            invoice_info.status = "withdrawed"
+            db.save_invoice_info(invoice_info)
+        except WithdrawException as ex:  # API вернул статус "error"
+            withdraw_status = "error"
+            withdraw_message = ex.args[0]
+            return {"status": withdraw_status, "message": withdraw_message}
+
+
 @app.post("/payment_service/get_invoice_status")
 async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
 
-    logger.info(f"Get invoice status requested: {invoice_status_request}")
 
+    try:
+        invoice_info = db.get_invoice_info(invoice_status_request.id)
+    except database.InvoiceNotFoundException:
+        return {
+            "status": "server error",
+            "code": "-2",
+            "message": "Invalid invoice id"
+        }
+
+    if invoice_info.status == 'payed':
+        return {
+            "status": "success",
+            "withdraw_status": "waiting" if invoice_info.auto_withdraw else "disabled",
+            "withdraw_message": ""
+        }
+    elif invoice_info.status == "withdrawed":
+        return {
+            "status": "success",
+            "withdraw_status": "success",
+            "withdraw_message": ""
+        }
+    elif invoice_info.status == "created":
+        return {
+            "status": "pending",
+            "withdraw_status": "disabled",
+            "withdraw_message": ""
+        }
+    """
     # если пользователь с полученым токеном не найден, то возвращает ошибку
     try:
         user = db.get_user_info(invoice_status_request.user_token)
@@ -142,19 +220,9 @@ async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
 
         # если счет оплачен и в запросе включен авто-вывод
         if invoice_status == "success" and invoice_status_request.auto_withdraw:
-            try:
-                await withdraw(user, int(float(invoice_info.get("sum", "0"))))    # создание запроса на вывод средств
-                withdraw_status = "success"
-                withdraw_message = ""
-            except WithdrawException as ex:    # API вернул статус "error"
-                withdraw_status = "error"
-                withdraw_message = ex.args[0]
 
-        return {
-            "status": invoice_status,
-            "withdraw_status": withdraw_status,
-            "withdraw_message": withdraw_message
-        }
+
+
 
     # при получении статуса счета произошла ошибка
     else:
@@ -165,7 +233,7 @@ async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
             "code": response.get("code", "UNDEFINED"),
             "message": response.get("message", "UNDEFINED")
         }
-
+    """
 
 @app.post("/payment_service/create_invoice/")
 async def create_invoice(invoice_request: CreateInvoiceRequest):
@@ -198,7 +266,9 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
         "wallet_to": WALLET,
         "sum": f"{invoice_request.amount:.2f}",
         "expire": "600",
-        "merchant_id": user.name
+        "merchant_id": user.name,
+        "comment": invoice_request.comment,
+        "hook_url": "http://185.189.255.220:8100/payment_service/webhook"
     }
 
     logger.debug(f"Sending create invoice request with fields: {fields}")
@@ -212,6 +282,11 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
 
         logger.info(f"Invoice created successfully: id = {response.get('id', 'UNDEFINED')}; "
                     f"sum = {invoice_request.amount}; url = {response.get('url', 'UNDEFINED')}")
+
+        invoice_info = database.InvoiceInfo((response.get('id', 'UNDEFINED'), user.token, 'created',
+                                             invoice_request.amount, -1, str(datetime.datetime.now()), "",
+                                             invoice_request.auto_withdraw, invoice_request.comment))
+        db.save_invoice_info(invoice_info)
 
         return {
             "status": status,
@@ -232,7 +307,7 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
 
 # только для тестирования
 async def main():
-    '''test_invoice_creation_request = CreateInvoiceRequest(user_token="2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M",
+    test_invoice_creation_request = CreateInvoiceRequest(user_token="2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M",
                                                          amount=20, expire=60)
     test_invoice_response = await create_invoice(test_invoice_creation_request)
     print(test_invoice_response)
@@ -252,9 +327,12 @@ async def main():
         tryings_left -= 1
         await asyncio.sleep(10)
 
-    print("RESULT: ", test_invoice_status)'''
+    print("RESULT: ", test_invoice_status)
 
-    #user = db.get_user_info("2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M")
+    #user = db.get_user_info("aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw")
+    #test_withdraw_response = await withdraw(user, 10, "Hello World!")
+
+
     pass
 
 

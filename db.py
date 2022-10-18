@@ -15,6 +15,35 @@ class UserNotFoundException(Exception):
     pass
 
 
+class InvoiceNotFoundException(Exception):
+    """
+    Счет не найден в базе данных.
+    """
+    pass
+
+
+class InvoiceInfo:
+    """
+    Содержит информацию о счете.
+    """
+    order_id: str    # номер счета
+    creator: str   # токен пользователя, для которого создан счет
+    status: str    # статус счета
+    amount: float    # сумма счета
+    credited: float    # сумма, зачисленная после оплаты счета
+    created: str    # время создания счета
+    payed: str    # время оплаты счета
+    auto_withdraw: bool    # автовывод средств при True
+    comment: str    # комментарий
+
+    def __init__(self, fields: Tuple):
+        if len(fields) != 9:
+            raise ValueError(f"Ожидаемое количество элементов в fields: 9. Получено: {len(fields)}")
+
+        self.order_id, self.creator, self.status, self.amount, self.credited, self.created, \
+            self.payed, self.auto_withdraw, self.comment = fields
+
+
 class UserInfo:
     """
     Содержит информацию о пользователе.
@@ -67,7 +96,48 @@ class DatabaseManager:
         self.connection = sqlite3.connect(filename)
         self.cursor = self.connection.cursor()
 
-    def get_user_info(self, token: str):
+    def get_invoice_info(self, order_id: str) -> InvoiceInfo:
+        """
+        Находит информацию о счете по айди.
+        :param order_id: Айди счета
+        :return: Данные о счете.
+        """
+        print(order_id)
+        self.cursor.execute("SELECT * FROM invoices WHERE order_id = ?", (order_id,))
+
+        rows = self.cursor.fetchall()
+
+        # если список строк пуст, значит счет не найден
+        if not rows:
+            raise InvoiceNotFoundException(f"Счет с айди {order_id} не найден.")
+
+        invoice_info = InvoiceInfo(rows[0])
+
+        return invoice_info
+
+    def save_invoice_info(self, invoice_info: InvoiceInfo):
+        """
+        Сохраняет данные о счете.
+        :param invoice_info: Данные о счете, которые нужно сохранить
+        :return:
+        """
+        try:
+            self.cursor.execute(
+                "INSERT INTO invoices (order_id, creator, status, amount, credited, created, payed, auto_withdraw, comment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
+                 invoice_info.credited, invoice_info.created, invoice_info.payed,  int(invoice_info.auto_withdraw),
+                 invoice_info.comment))
+            "ON DUPLICATE KEY UPDATE "
+        except sqlite3.IntegrityError:
+            self.cursor.execute(
+                "UPDATE invoices SET order_id = ?, creator = ?, status = ?, amount = ?, credited = ?, created = ?, payed = ?, auto_withdraw = ?, comment = ? WHERE order_id = ?;",
+                (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
+                 invoice_info.credited, invoice_info.created, invoice_info.payed, int(invoice_info.auto_withdraw),
+                 invoice_info.comment, invoice_info.order_id))
+        self.connection.commit()
+
+
+    def get_user_info(self, token: str) -> UserInfo:
         """
         Находит информацию о пользователе по токену.
 
@@ -96,11 +166,17 @@ def __create_table(connection: Connection, cursor: Cursor):
         "CREATE TABLE IF NOT EXISTS users "
         "(token VARCHAR(32) NOT NULL, name VARCHAR(32) NOT NULL, percent INT UNSIGNED NOT NULL, "
         "withdraw_service VARCHAR(16) NOT NULL, withdraw_wallet VARCHAR(32), PRIMARY KEY (token, name));")
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS invoices "
+        "(order_id VARCHAR(32) NOT NULL, creator VARCHAR(32) NOT NULL, status VARCHAR(32) NOT NULL, "
+        "amount REAL NOT NULL, credited REAL NOT NULL, created VARCHAR(32) NOT NULL, "
+        "payed VARCHAR(32) NOT NULL, auto_withdraw BIT NOT NULL, "
+        "comment VARCHAR(32) NOT NULL, PRIMARY KEY (order_id));")
     connection.commit()
 
 
 def __drop_table(connection: Connection, cursor: Cursor):
-    cursor.execute("DROP TABLE IF EXISTS users;")
+    cursor.execute("DROP TABLE IF EXISTS invoices;")
     connection.commit()
 
 
@@ -115,8 +191,19 @@ def __add_user(connection: Connection, cursor: Cursor, name: str, percent: int, 
     return token
 
 
+def __edit_user(connection: Connection, cursor: Cursor):
+    cursor.execute("UPDATE users SET withdraw_service='lava', withdraw_wallet='R10135783' WHERE name = 'TestUser';")
+    connection.commit()
+
+
 def __get_all_users(connection: Connection, cursor: Cursor):
     cursor.execute("SELECT * FROM users")
+
+    return cursor.fetchall()
+
+
+def __get_all_invoices(connection: Connection, cursor: Cursor):
+    cursor.execute("SELECT * FROM invoices")
 
     return cursor.fetchall()
 
@@ -125,6 +212,12 @@ if __name__ == "__main__":
     dbm = DatabaseManager("database.sqlite3")
     #__drop_table(dbm.connection, dbm.cursor)
     #__create_table(dbm.connection, dbm.cursor)
-    #print(__add_user(dbm.connection, dbm.cursor, "SOZ", 100, "qiwi", "+79608357711"))
+    #print(__add_user(dbm.connection, dbm.cursor, "LavaWithdraw", 100, "lava", "R10135783"))
     #dbm.get_user_info("-RKZE_bga7T-27GkEowwR6JqRWfJ9mzVkUW3u0g-1-w")
+    #ii = InvoiceInfo(("123456-123-1234-123456", "-RKZE_bga7T-27GkEowwR6JqRWfJ9mzVkUW3u0g-1-w", "created",
+                      #20, 19, "1:1:1 1:1:1", "2:3:1 1:1:1", True, "Comment"))
+    #dbm.save_invoice_info(ii)
+    #print(dbm.get_invoice_info("ae8c2701-8f8b-1de9-08a3-d2fce55ddf4e"))
+    #__edit_user(dbm.connection, dbm.cursor)
     print(__get_all_users(dbm.connection, dbm.cursor))
+    print(__get_all_invoices(dbm.connection, dbm.cursor))
