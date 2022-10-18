@@ -363,30 +363,156 @@ Response: {'id': '056288e6-01a1-d8fc-8979-a462916a58f4', 'status': 'success', 'a
 [2022-10-01 23:40:32,022: DEBUG] Sending invoice status request with fields: {'id': '0aaad74b-06c5-b30b-8179-f27890c9571c'}
 [2022-10-01 23:40:32,397: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0aaad74b-06c5-b30b-8179-f27890c9571c', 'order_id': None, 'expire': 1664688879, 'sum': '20.00', 'comment': None, 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
 [2022-10-01 23:40:32,397: INFO] Got invoice status: id = 0aaad74b-06c5-b30b-8179-f27890c9571c; status = pending;
-[2022-10-08 14:35:29,250: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
-[2022-10-08 14:36:30,616: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
-[2022-10-08 14:37:28,937: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
-[2022-10-08 14:39:35,815: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
-[2022-10-08 14:40:19,770: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
-[2022-10-08 16:39:55,640: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
-[2022-10-08 16:41:57,315: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=60
-[2022-10-08 16:41:57,315: ERROR] User with token 2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M not found
-[2022-10-08 16:43:38,789: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 16:45:37,909: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 16:46:08,035: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 16:47:14,721: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 17:21:49,438: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 17:22:13,380: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 17:23:17,551: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 17:26:20,178: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 17:26:20,469: ERROR] [API ERROR] Error while creating invoice: 
-Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
-[2022-10-08 17:29:12,740: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 17:29:12,998: ERROR] [API ERROR] Error while creating invoice: 
-Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
-[2022-10-08 17:34:37,006: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 17:34:37,289: ERROR] [API ERROR] Error while creating invoice: 
-Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
-[2022-10-08 18:01:14,125: INFO] Create invoice requested: user_token='0WH5bBJrq2nA1x6Wpk85vxBvOpC5zLydSuj9YIcOPa8' amount=20 expire=60
-[2022-10-08 18:01:14,414: ERROR] [API ERROR] Error while creating invoice: 
-Response: {'data': None, 'error': 'Unauthorized', 'status': 401, 'status_check': False}
+[2022-10-14 21:49:16,113: INFO] Create invoice requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' amount=20 expire=5 comment='PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;'
+[2022-10-14 21:49:16,115: DEBUG] Sending create invoice request with fields: {'wallet_to': 'R10031991', 'sum': '20.00', 'expire': '600', 'merchant_id': 'TestUser', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;'}
+[2022-10-14 21:49:16,703: DEBUG] Got response: {'status': 'success', 'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'url': 'https://acquiring.lava.ru/invoice/0d6a5139-e8a3-66b6-cf58-82280148fa87', 'expire': 1665805757, 'sum': '20.00', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_name': None, 'merchant_id': 'TestUser', 'pay_service': None}
+[2022-10-14 21:49:16,704: INFO] Invoice created successfully: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; sum = 20; url = https://acquiring.lava.ru/invoice/0d6a5139-e8a3-66b6-cf58-82280148fa87
+[2022-10-14 21:49:16,760: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:49:16,761: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:49:17,175: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:49:17,175: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = pending;
+[2022-10-14 21:49:23,180: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:49:23,181: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:49:23,597: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:49:23,598: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = pending;
+[2022-10-14 21:49:29,600: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:49:29,600: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:49:30,054: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:49:30,054: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = pending;
+[2022-10-14 21:49:36,057: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:49:36,057: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:49:36,454: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:49:36,455: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = pending;
+[2022-10-14 21:49:42,460: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:49:42,460: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:49:42,876: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:49:42,876: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = pending;
+[2022-10-14 21:49:48,879: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:49:48,879: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:49:49,288: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:49:49,288: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = pending;
+[2022-10-14 21:49:55,292: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:49:55,292: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:49:55,736: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:49:55,737: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = pending;
+[2022-10-14 21:50:01,739: INFO] Get invoice status requested: user_token='2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M' id='0d6a5139-e8a3-66b6-cf58-82280148fa87' auto_withdraw=True
+[2022-10-14 21:50:01,739: DEBUG] Sending invoice status request with fields: {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87'}
+[2022-10-14 21:50:02,140: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '0d6a5139-e8a3-66b6-cf58-82280148fa87', 'order_id': None, 'expire': 1665805757, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: ;', 'status': 'success', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'TestUser', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:50:02,140: INFO] Got invoice status: id = 0d6a5139-e8a3-66b6-cf58-82280148fa87; status = success;
+[2022-10-14 21:50:02,141: INFO] Withdraw requested: user = TestUser; service: qiwi; wallet: +79608357711; amount = 20
+[2022-10-14 21:50:02,141: INFO] Sended withdraw request with fields: {'account': 'R10031991', 'amount': '12.00', 'service': 'qiwi', 'wallet_to': '+79608357711'}
+[2022-10-14 21:50:02,585: INFO] [WITHDRAW] Withdraw request successfully created: 
+Request: {'account': 'R10031991', 'amount': '12.00', 'service': 'qiwi', 'wallet_to': '+79608357711'}; 
+Response: {'id': 'f1cd16fc-abe4-6ed8-d675-1f3088dc22ef', 'status': 'success', 'amount': 11.65, 'commission': 0.35};
+[2022-10-14 21:52:39,028: INFO] Create invoice requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' amount=20 expire=5 comment='PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;'
+[2022-10-14 21:52:39,028: DEBUG] Sending create invoice request with fields: {'wallet_to': 'R10031991', 'sum': '20.00', 'expire': '600', 'merchant_id': 'LavaWithdraw', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;'}
+[2022-10-14 21:52:39,515: DEBUG] Got response: {'status': 'success', 'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'url': 'https://acquiring.lava.ru/invoice/c2efed52-52b1-eba2-34ae-d75fa155703d', 'expire': 1665805960, 'sum': '20.00', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_name': None, 'merchant_id': 'LavaWithdraw', 'pay_service': None}
+[2022-10-14 21:52:39,515: INFO] Invoice created successfully: id = c2efed52-52b1-eba2-34ae-d75fa155703d; sum = 20; url = https://acquiring.lava.ru/invoice/c2efed52-52b1-eba2-34ae-d75fa155703d
+[2022-10-14 21:52:39,532: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='c2efed52-52b1-eba2-34ae-d75fa155703d' auto_withdraw=True
+[2022-10-14 21:52:39,532: DEBUG] Sending invoice status request with fields: {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d'}
+[2022-10-14 21:52:39,923: DEBUG] Got response: {'status': 'success', 'invoice': {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'order_id': None, 'expire': 1665805960, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:52:39,923: INFO] Got invoice status: id = c2efed52-52b1-eba2-34ae-d75fa155703d; status = pending;
+[2022-10-14 21:52:45,925: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='c2efed52-52b1-eba2-34ae-d75fa155703d' auto_withdraw=True
+[2022-10-14 21:52:45,925: DEBUG] Sending invoice status request with fields: {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d'}
+[2022-10-14 21:52:46,411: DEBUG] Got response: {'status': 'success', 'invoice': {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'order_id': None, 'expire': 1665805960, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:52:46,411: INFO] Got invoice status: id = c2efed52-52b1-eba2-34ae-d75fa155703d; status = pending;
+[2022-10-14 21:52:52,414: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='c2efed52-52b1-eba2-34ae-d75fa155703d' auto_withdraw=True
+[2022-10-14 21:52:52,414: DEBUG] Sending invoice status request with fields: {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d'}
+[2022-10-14 21:52:52,813: DEBUG] Got response: {'status': 'success', 'invoice': {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'order_id': None, 'expire': 1665805960, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:52:52,814: INFO] Got invoice status: id = c2efed52-52b1-eba2-34ae-d75fa155703d; status = pending;
+[2022-10-14 21:52:58,817: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='c2efed52-52b1-eba2-34ae-d75fa155703d' auto_withdraw=True
+[2022-10-14 21:52:58,817: DEBUG] Sending invoice status request with fields: {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d'}
+[2022-10-14 21:52:59,250: DEBUG] Got response: {'status': 'success', 'invoice': {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'order_id': None, 'expire': 1665805960, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:52:59,250: INFO] Got invoice status: id = c2efed52-52b1-eba2-34ae-d75fa155703d; status = pending;
+[2022-10-14 21:53:05,254: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='c2efed52-52b1-eba2-34ae-d75fa155703d' auto_withdraw=True
+[2022-10-14 21:53:05,254: DEBUG] Sending invoice status request with fields: {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d'}
+[2022-10-14 21:53:05,734: DEBUG] Got response: {'status': 'success', 'invoice': {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'order_id': None, 'expire': 1665805960, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:53:05,734: INFO] Got invoice status: id = c2efed52-52b1-eba2-34ae-d75fa155703d; status = pending;
+[2022-10-14 21:53:11,738: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='c2efed52-52b1-eba2-34ae-d75fa155703d' auto_withdraw=True
+[2022-10-14 21:53:11,738: DEBUG] Sending invoice status request with fields: {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d'}
+[2022-10-14 21:53:12,157: DEBUG] Got response: {'status': 'success', 'invoice': {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'order_id': None, 'expire': 1665805960, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:53:12,157: INFO] Got invoice status: id = c2efed52-52b1-eba2-34ae-d75fa155703d; status = pending;
+[2022-10-14 21:53:18,160: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='c2efed52-52b1-eba2-34ae-d75fa155703d' auto_withdraw=True
+[2022-10-14 21:53:18,160: DEBUG] Sending invoice status request with fields: {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d'}
+[2022-10-14 21:53:18,590: DEBUG] Got response: {'status': 'success', 'invoice': {'id': 'c2efed52-52b1-eba2-34ae-d75fa155703d', 'order_id': None, 'expire': 1665805960, 'sum': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;', 'status': 'success', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-14 21:53:18,590: INFO] Got invoice status: id = c2efed52-52b1-eba2-34ae-d75fa155703d; status = success;
+[2022-10-14 21:53:18,590: INFO] Withdraw requested: user = LavaWithdraw; service: lava; wallet: R10135783; amount = 20
+[2022-10-14 21:53:18,590: INFO] Sended transfer request with fields: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;'}
+[2022-10-14 21:53:18,965: ERROR] [WITHDRAW] Error while creating withdraw request: 
+Request: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '20.00', 'comment': 'PlayerID: 76561198430514994; Sum: 20; ReferalCode: TestCode;'};
+ Response: {'status': 'error', 'message': 'Invalid token', 'code': 5};
+[2022-10-15 14:20:39,373: INFO] Create invoice requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' amount=10 expire=5 comment='PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'
+[2022-10-15 14:20:39,400: DEBUG] Sending create invoice request with fields: {'wallet_to': 'R10031991', 'sum': '10.00', 'expire': '600', 'merchant_id': 'LavaWithdraw', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'}
+[2022-10-15 14:20:40,032: DEBUG] Got response: {'status': 'success', 'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'url': 'https://acquiring.lava.ru/invoice/6285b7ba-baca-83f3-0ac6-6995693fd318', 'expire': 1665865242, 'sum': '10.00', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_name': None, 'merchant_id': 'LavaWithdraw', 'pay_service': None}
+[2022-10-15 14:20:40,033: INFO] Invoice created successfully: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; sum = 10; url = https://acquiring.lava.ru/invoice/6285b7ba-baca-83f3-0ac6-6995693fd318
+[2022-10-15 14:20:40,084: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='6285b7ba-baca-83f3-0ac6-6995693fd318' auto_withdraw=True
+[2022-10-15 14:20:40,085: DEBUG] Sending invoice status request with fields: {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318'}
+[2022-10-15 14:20:40,468: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'order_id': None, 'expire': 1665865242, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:20:40,468: INFO] Got invoice status: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; status = pending;
+[2022-10-15 14:20:46,472: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='6285b7ba-baca-83f3-0ac6-6995693fd318' auto_withdraw=True
+[2022-10-15 14:20:46,473: DEBUG] Sending invoice status request with fields: {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318'}
+[2022-10-15 14:20:46,946: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'order_id': None, 'expire': 1665865242, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:20:46,946: INFO] Got invoice status: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; status = pending;
+[2022-10-15 14:20:52,955: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='6285b7ba-baca-83f3-0ac6-6995693fd318' auto_withdraw=True
+[2022-10-15 14:20:52,955: DEBUG] Sending invoice status request with fields: {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318'}
+[2022-10-15 14:20:53,509: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'order_id': None, 'expire': 1665865242, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:20:53,509: INFO] Got invoice status: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; status = pending;
+[2022-10-15 14:20:59,513: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='6285b7ba-baca-83f3-0ac6-6995693fd318' auto_withdraw=True
+[2022-10-15 14:20:59,513: DEBUG] Sending invoice status request with fields: {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318'}
+[2022-10-15 14:21:00,001: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'order_id': None, 'expire': 1665865242, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:21:00,001: INFO] Got invoice status: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; status = pending;
+[2022-10-15 14:21:06,005: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='6285b7ba-baca-83f3-0ac6-6995693fd318' auto_withdraw=True
+[2022-10-15 14:21:06,006: DEBUG] Sending invoice status request with fields: {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318'}
+[2022-10-15 14:21:06,446: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'order_id': None, 'expire': 1665865242, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:21:06,446: INFO] Got invoice status: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; status = pending;
+[2022-10-15 14:21:12,448: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='6285b7ba-baca-83f3-0ac6-6995693fd318' auto_withdraw=True
+[2022-10-15 14:21:12,448: DEBUG] Sending invoice status request with fields: {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318'}
+[2022-10-15 14:21:12,827: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'order_id': None, 'expire': 1665865242, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:21:12,827: INFO] Got invoice status: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; status = pending;
+[2022-10-15 14:21:18,829: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='6285b7ba-baca-83f3-0ac6-6995693fd318' auto_withdraw=True
+[2022-10-15 14:21:18,830: DEBUG] Sending invoice status request with fields: {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318'}
+[2022-10-15 14:21:19,336: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '6285b7ba-baca-83f3-0ac6-6995693fd318', 'order_id': None, 'expire': 1665865242, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'success', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:21:19,337: INFO] Got invoice status: id = 6285b7ba-baca-83f3-0ac6-6995693fd318; status = success;
+[2022-10-15 14:21:19,337: INFO] Withdraw requested: user = LavaWithdraw; service: lava; wallet: R10135783; amount = 10
+[2022-10-15 14:21:19,337: INFO] Sended transfer request with fields: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'}
+[2022-10-15 14:21:19,664: ERROR] [WITHDRAW] Error while creating withdraw request: 
+Request: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'};
+ Response: {'status': 'error', 'message': 'Invalid token', 'code': 5};
+[2022-10-15 14:35:49,984: INFO] Withdraw requested: user = LavaWithdraw; service: lava; wallet: R10135783; amount = 10
+[2022-10-15 14:35:49,984: INFO] Sended transfer request with fields: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '10.00', 'comment': 'Hello World!'}
+[2022-10-15 14:35:50,671: INFO] [WITHDRAW] Withdraw request successfully created: 
+Request: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '10.00', 'comment': 'Hello World!'}; 
+Response: {'status': 'success', 'id': 'f2ff5892-0b05-4dbc-5ee5-e04932547e5a', 'amount': 10, 'commission': 0};
+[2022-10-15 14:37:27,176: INFO] Create invoice requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' amount=10 expire=5 comment='PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'
+[2022-10-15 14:37:27,176: DEBUG] Sending create invoice request with fields: {'wallet_to': 'R10031991', 'sum': '10.00', 'expire': '600', 'merchant_id': 'LavaWithdraw', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'}
+[2022-10-15 14:37:27,653: DEBUG] Got response: {'status': 'success', 'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'url': 'https://acquiring.lava.ru/invoice/66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'expire': 1665866249, 'sum': '10.00', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_name': None, 'merchant_id': 'LavaWithdraw', 'pay_service': None}
+[2022-10-15 14:37:27,653: INFO] Invoice created successfully: id = 66e330a1-3d1f-8bd1-5119-8a4c933e88d9; sum = 10; url = https://acquiring.lava.ru/invoice/66e330a1-3d1f-8bd1-5119-8a4c933e88d9
+[2022-10-15 14:37:27,661: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='66e330a1-3d1f-8bd1-5119-8a4c933e88d9' auto_withdraw=True
+[2022-10-15 14:37:27,661: DEBUG] Sending invoice status request with fields: {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9'}
+[2022-10-15 14:37:28,095: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'order_id': None, 'expire': 1665866249, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:37:28,095: INFO] Got invoice status: id = 66e330a1-3d1f-8bd1-5119-8a4c933e88d9; status = pending;
+[2022-10-15 14:37:34,100: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='66e330a1-3d1f-8bd1-5119-8a4c933e88d9' auto_withdraw=True
+[2022-10-15 14:37:34,100: DEBUG] Sending invoice status request with fields: {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9'}
+[2022-10-15 14:37:34,486: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'order_id': None, 'expire': 1665866249, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:37:34,486: INFO] Got invoice status: id = 66e330a1-3d1f-8bd1-5119-8a4c933e88d9; status = pending;
+[2022-10-15 14:37:40,488: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='66e330a1-3d1f-8bd1-5119-8a4c933e88d9' auto_withdraw=True
+[2022-10-15 14:37:40,489: DEBUG] Sending invoice status request with fields: {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9'}
+[2022-10-15 14:37:40,947: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'order_id': None, 'expire': 1665866249, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:37:40,947: INFO] Got invoice status: id = 66e330a1-3d1f-8bd1-5119-8a4c933e88d9; status = pending;
+[2022-10-15 14:37:46,950: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='66e330a1-3d1f-8bd1-5119-8a4c933e88d9' auto_withdraw=True
+[2022-10-15 14:37:46,951: DEBUG] Sending invoice status request with fields: {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9'}
+[2022-10-15 14:37:47,360: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'order_id': None, 'expire': 1665866249, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:37:47,360: INFO] Got invoice status: id = 66e330a1-3d1f-8bd1-5119-8a4c933e88d9; status = pending;
+[2022-10-15 14:37:53,363: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='66e330a1-3d1f-8bd1-5119-8a4c933e88d9' auto_withdraw=True
+[2022-10-15 14:37:53,363: DEBUG] Sending invoice status request with fields: {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9'}
+[2022-10-15 14:37:53,766: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'order_id': None, 'expire': 1665866249, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'pending', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:37:53,766: INFO] Got invoice status: id = 66e330a1-3d1f-8bd1-5119-8a4c933e88d9; status = pending;
+[2022-10-15 14:37:59,773: INFO] Get invoice status requested: user_token='aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw' id='66e330a1-3d1f-8bd1-5119-8a4c933e88d9' auto_withdraw=True
+[2022-10-15 14:37:59,773: DEBUG] Sending invoice status request with fields: {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9'}
+[2022-10-15 14:38:00,164: DEBUG] Got response: {'status': 'success', 'invoice': {'id': '66e330a1-3d1f-8bd1-5119-8a4c933e88d9', 'order_id': None, 'expire': 1665866249, 'sum': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;', 'status': 'success', 'success_url': None, 'fail_url': None, 'hook_url': None, 'custom_fields': '', 'merchant_id': 'LavaWithdraw', 'merchant_name': None, 'pay_service': None, 'payer_details': None}}
+[2022-10-15 14:38:00,164: INFO] Got invoice status: id = 66e330a1-3d1f-8bd1-5119-8a4c933e88d9; status = success;
+[2022-10-15 14:38:00,164: INFO] Withdraw requested: user = LavaWithdraw; service: lava; wallet: R10135783; amount = 10
+[2022-10-15 14:38:00,164: INFO] Sended transfer request with fields: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'}
+[2022-10-15 14:38:00,599: INFO] [WITHDRAW] Withdraw request successfully created: 
+Request: {'account_from': 'R10031991', 'account_to': 'R10135783', 'amount': '10.00', 'comment': 'PlayerID: 76561198430514994; Sum: 10; ReferalCode: TestCode;'}; 
+Response: {'status': 'success', 'id': 'd2513576-7f02-a321-e877-a8364ce25696', 'amount': 10, 'commission': 0};
