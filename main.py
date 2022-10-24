@@ -247,7 +247,7 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
         "expire": "600",
         "merchant_id": user.name,
         "comment": invoice_request.comment,
-        "hook_url": "http://185.189.255.220:8100/payment_service/webhook"
+        "hook_url": "http://185.189.255.220:8050/payment_service/webhook"
     }
 
     logger.debug(f"Sending create invoice request with fields: {fields}")
