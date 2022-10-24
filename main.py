@@ -17,6 +17,7 @@ import logging
 from typing import Optional
 import asyncio
 from typing import Dict, Any
+import config as cfg
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -28,6 +29,8 @@ class CreateInvoiceRequest(BaseModel):
     expire: int    # время жизни счета (по каким-то причинам не работает)
     comment: Optional[str] = Field("")   # комментарий
     auto_withdraw: Optional[bool] = Field(True)  # авто-вывод
+    withdraw_service: Optional[str] = ""    # способ вывода (см. https://dev.lava.ru/methods)
+    withdraw_wallet: Optional[str] = ""    # номер кошелька для вывода
 
 
 class InvoiceStatusRequest(BaseModel):
@@ -40,8 +43,6 @@ class InvoiceStatusRequest(BaseModel):
 
 
 app = FastAPI(docs_url=None, redoc_url=None)    # docs_url и redoc_url отключают автоматическую документацию
-TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiIxZmQwZDZlYi02YjZlLTVkYjYtM2IzYS1lNzk0ZmJlZTRiMGYiLCJ0aWQiOiJjNjdmYWFmMS1jYTIxLWJiMzQtOTA5Yi1lYjg1MDI1OGExOWMifQ.lkRc2IPMT2m_eWnP18fbq90J9EX1tQJzrGScrX66K-U"
-WALLET = "R10031991"
 db = database.DatabaseManager("database.sqlite3")    # экземпляр класса для доступа к данным из БД.
 
 logger = logging.getLogger("payment_api_logger")
@@ -59,43 +60,59 @@ class WithdrawException(Exception):
     pass
 
 
-async def withdraw(user: database.UserInfo, amount: float, comment: str) -> None:
+async def get_balance(wallet: str) -> float:
+    """
+    Получает текущий баланс кошелька
+
+    :param wallet: Номер кошелька
+    :return: Баланс
+    """
+
+    response = dlltool.send("https://api.lava.ru/wallet/list", "POST", {"Authorization": cfg.TOKEN}, {"empty": "field"})    # см. https://dev.lava.ru/walletlist
+
+    for subdict in response:
+        if subdict.get("account", "") == wallet:
+            return float(subdict.get("balance", 0))
+
+
+async def withdraw(withdraw_service: str, withdraw_wallet: str, amount: float, comment: str) -> None:
     """
     Выводит средства
-    :param user: Информация о пользователе из БД
+    :param withdraw_service: Способ вывода (см. https://dev.lava.ru/methods)
+    :param withdraw_wallet: Номер кошелька для вывода
     :param amount: Сумма
     :param comment: Комментарий
     :return:
     """
     amount = float(amount)
-    logger.info(f"Withdraw requested: user = {user.name}; service: {user.withdraw_service}; "
-                f"wallet: {user.withdraw_wallet}; amount = {amount}")
+    logger.info(f"Withdraw requested: service: {withdraw_service}; "
+                f"wallet: {withdraw_wallet}; amount = {amount}")
 
     # если сервис вывода - 'lava', то создаем перевод средств между кошельками
-    if user.withdraw_service == "lava":
+    if withdraw_service == "lava":
         # см. https://dev.lava.ru/transfercreate
         fields = {
-            "account_from": WALLET,
-            "account_to": user.withdraw_wallet,
-            "amount": f"{amount * (user.percent / 100):.2f}",
+            "account_from": cfg.WALLET,
+            "account_to": withdraw_wallet,
+            "amount": f"{amount:.2f}",
             "comment": comment
 
         }
         logger.info(f"Sended transfer request with fields: {fields}")
-        response = dlltool.send("https://api.lava.ru/transfer/create", "POST", {"Authorization": TOKEN},
+        response = dlltool.send("https://api.lava.ru/transfer/create", "POST", {"Authorization": cfg.TOKEN},
                                 fields)  # отправка данных в API (см. описание модуля)
 
     # иначе создаем вывод средств
     else:
         # см. https://dev.lava.ru/withdrawcreate
         fields = {
-            "account": WALLET,
-            "amount": f"{amount * (user.percent / 100):.2f}",
-            "service": user.withdraw_service,
-            "wallet_to": user.withdraw_wallet
+            "account": cfg.WALLET,
+            "amount": f"{amount:.2f}",
+            "service": withdraw_service,
+            "wallet_to": withdraw_wallet
         }
         logger.info(f"Sended withdraw request with fields: {fields}")
-        response = dlltool.send("https://api.lava.ru/withdraw/create", "POST", {"Authorization": TOKEN},
+        response = dlltool.send("https://api.lava.ru/withdraw/create", "POST", {"Authorization": cfg.TOKEN},
                                 fields)  # отправка данных в API (см. описание модуля)
 
     if (status := response.get("status", "error")) != "success":
@@ -123,6 +140,7 @@ async def webhook(data: Dict[Any, Any]):
 
     logger.info(f"[WEBHOOK] Invoice payed: {invoice_info.order_id} {invoice_info.creator} {invoice_info.comment}")
 
+    # если при создании счета был включен автовывод, то выводим средства пользователю
     if invoice_info.auto_withdraw and invoice_info.credited != -1:
         try:
             user = db.get_user_info(invoice_info.creator)
@@ -134,20 +152,38 @@ async def webhook(data: Dict[Any, Any]):
                 "message": "Invalid user token"
             }
 
+        # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
+        service = invoice_info.withdraw_service
+        wallet = invoice_info.withdraw_wallet
+        if service == "" or wallet == "":
+            service, wallet = user.withdraw_service, user.withdraw_wallet
+
         try:
-            await withdraw(user, invoice_info.credited,
+            await withdraw(service, wallet, invoice_info.credited * (user.percent / 100),
                            invoice_info.comment)  # создание запроса на вывод средств
             invoice_info.status = "withdrawed"
             db.save_invoice_info(invoice_info)
         except WithdrawException as ex:  # API вернул статус "error"
             withdraw_status = "error"
             withdraw_message = ex.args[0]
-            return {"status": withdraw_status, "message": withdraw_message}
+            logger.exception(ex)
+
+        balance = await get_balance(cfg.WALLET)
+
+        # вывод средств, полученых с комиссии, администраторам
+        if cfg.ADMIN_AUTOWITHDRAW_ENABLED and balance > cfg.ADMIN_AUTOWITHDRAW_SUM:
+            admins = cfg.ADMIN_AUTOWITHDRAW_USERS
+
+            for admin_data in admins:
+                try:
+                    await withdraw(admin_data[0], admin_data[1], balance / 100 * admin_data[2], "Admin autowithdraw")
+                    logger.info(f"[ADMIN WITHDRAW] SUCCESS {admin_data}")
+                except WithdrawException as ex:
+                    logger.info(f"[ADMIN WITHDRAW] ERROR {admin_data}; MESSAGE: {ex.args[0]}")
 
 
 @app.post("/payment_service/get_invoice_status")
 async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
-
 
     try:
         invoice_info = db.get_invoice_info(invoice_status_request.id)
@@ -176,64 +212,7 @@ async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
             "withdraw_status": "disabled",
             "withdraw_message": ""
         }
-    """
-    # если пользователь с полученым токеном не найден, то возвращает ошибку
-    try:
-        user = db.get_user_info(invoice_status_request.user_token)
-    except database.UserNotFoundException:
-        logger.error(f"User with token {invoice_status_request.user_token} not found")
-        return {
-            "status": "server error",
-            "code": "-1",
-            "message": "Invalid user token"
-        }
 
-    fields = {
-        "id": invoice_status_request.id
-    }
-
-    logger.debug(f"Sending invoice status request with fields: {fields}")
-
-    response = dlltool.send("https://api.lava.ru/invoice/info", "POST", {"Authorization": TOKEN}, fields)    # отправка данных в API (см. описание модуля)
-
-    logger.debug(f"Got response: {response}")
-
-    # статус счета успешно получен
-    if (status := response.get("status", "error")) == "success":
-
-        # 'invoice' содержит словарь с данными о счете. См. https://dev.lava.ru/invoiceinfo
-        if "invoice" not in response.keys():
-            logger.error(f"No 'invoice' key in response: {response}")
-
-            return {
-                "status": "server error",
-                "code": "-2",
-                "message": "No 'invoice' key in response"
-            }
-
-        invoice_info = response['invoice']
-        invoice_status = invoice_info.get("status", "cancel")
-        logger.info(f"Got invoice status: id = {invoice_info.get('id', 'UNDEFINED')}; status = {invoice_status};")
-
-        withdraw_status = "disabled"
-        withdraw_message = ""
-
-        # если счет оплачен и в запросе включен авто-вывод
-        if invoice_status == "success" and invoice_status_request.auto_withdraw:
-
-
-
-
-    # при получении статуса счета произошла ошибка
-    else:
-        logger.error(f"[API ERROR] Error while getting invoice info: \nRequest fields: {fields} \nResponse: {response}")
-
-        return {
-            "status": status,
-            "code": response.get("code", "UNDEFINED"),
-            "message": response.get("message", "UNDEFINED")
-        }
-    """
 
 @app.post("/payment_service/create_invoice/")
 async def create_invoice(invoice_request: CreateInvoiceRequest):
@@ -263,7 +242,7 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
 
     # см. https://dev.lava.ru/invoicecreate
     fields = {
-        "wallet_to": WALLET,
+        "wallet_to": cfg.WALLET,
         "sum": f"{invoice_request.amount:.2f}",
         "expire": "600",
         "merchant_id": user.name,
@@ -273,7 +252,7 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
 
     logger.debug(f"Sending create invoice request with fields: {fields}")
 
-    response = dlltool.send("https://api.lava.ru/invoice/create", "POST", {"Authorization": TOKEN}, fields)    # отправка данных в API (см. описание модуля)
+    response = dlltool.send("https://api.lava.ru/invoice/create", "POST", {"Authorization": cfg.TOKEN}, fields)    # отправка данных в API (см. описание модуля)
 
     logger.debug(f"Got response: {response}")
 
@@ -283,9 +262,15 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
         logger.info(f"Invoice created successfully: id = {response.get('id', 'UNDEFINED')}; "
                     f"sum = {invoice_request.amount}; url = {response.get('url', 'UNDEFINED')}")
 
+        # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
+        service = invoice_request.withdraw_service
+        wallet = invoice_request.withdraw_wallet
+        if service == "" or wallet == "":
+            service, wallet = user.withdraw_service, user.withdraw_wallet
+
         invoice_info = database.InvoiceInfo((response.get('id', 'UNDEFINED'), user.token, 'created',
                                              invoice_request.amount, -1, str(datetime.datetime.now()), "",
-                                             invoice_request.auto_withdraw, invoice_request.comment))
+                                             invoice_request.auto_withdraw, invoice_request.comment, service, wallet))
         db.save_invoice_info(invoice_info)
 
         return {
@@ -305,15 +290,31 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
         }
 
 
+async def test_webhook():
+    test_invoice_info = database.InvoiceInfo(("test_invoice_1234", "R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo", 'created',
+                                             10, -1, str(datetime.datetime.now()), "",
+                                             True, "Webhook test", "qiwi", "+79608357711"))
+    db.save_invoice_info(test_invoice_info)
+
+    lava_data_emitter = {
+        "invoice_id": "test_invoice_1234",
+        "credited": 0,
+    }
+    webhook_response = await webhook(lava_data_emitter)
+
+    print("Webhook response:", webhook_response)
+
+
 # только для тестирования
 async def main():
-    test_invoice_creation_request = CreateInvoiceRequest(user_token="2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M",
+    '''test_invoice_creation_request = CreateInvoiceRequest(user_token="R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo",
                                                          amount=20, expire=60)
     test_invoice_response = await create_invoice(test_invoice_creation_request)
+
     print(test_invoice_response)
 
     test_invoice_status_request = InvoiceStatusRequest(id=test_invoice_response.get("id", "UNDEFINED"),
-                         user_token="2qxm3GWCHnUxSO3e7fWJFcbKRPpmYWEaK7HcPoPxu1M", auto_withdraw=True)
+                         user_token="R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo", auto_withdraw=True)
 
     tryings_left = 10
     while tryings_left > 0:
@@ -327,11 +328,15 @@ async def main():
         tryings_left -= 1
         await asyncio.sleep(10)
 
-    print("RESULT: ", test_invoice_status)
+    print("RESULT: ", test_invoice_status)'''
 
-    #user = db.get_user_info("aoTwBen_REaz44vuBtUPovGWHJiweYG1ZdwLrNueMEw")
-    #test_withdraw_response = await withdraw(user, 10, "Hello World!")
+    """user = db.get_user_info("R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo")
+    test_withdraw_response = await withdraw("test", "123456", 1, "Comment")
+    print(test_withdraw_response)"""
 
+    print(await get_balance(cfg.WALLET))
+
+    #await test_webhook()
 
     pass
 

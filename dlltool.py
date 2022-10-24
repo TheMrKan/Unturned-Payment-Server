@@ -18,7 +18,7 @@ from System.Collections.Generic import Dictionary
 from System import String
 
 
-def send(url: str, method: str, headers: Dict[str, str], fields: Dict[str, str]) -> Dict[str, Any]:
+def send(url: str, method: str, headers: Dict[str, str], fields: Dict[str, str]) -> Dict[Any, Any]:
     """
     Вызывает функцию из C# модуля для отправки multipart/form-data запросов.
 

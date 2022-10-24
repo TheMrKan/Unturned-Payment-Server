@@ -34,14 +34,16 @@ class InvoiceInfo:
     created: str    # время создания счета
     payed: str    # время оплаты счета
     auto_withdraw: bool    # автовывод средств при True
+    withdraw_service: str    # способ вывода
+    withdraw_wallet: str    # номер кошелька для вывода
     comment: str    # комментарий
 
     def __init__(self, fields: Tuple):
-        if len(fields) != 9:
-            raise ValueError(f"Ожидаемое количество элементов в fields: 9. Получено: {len(fields)}")
+        if len(fields) != 11:
+            raise ValueError(f"Ожидаемое количество элементов в fields: 11. Получено: {len(fields)}")
 
         self.order_id, self.creator, self.status, self.amount, self.credited, self.created, \
-            self.payed, self.auto_withdraw, self.comment = fields
+            self.payed, self.auto_withdraw, self.comment, self.withdraw_service, self.withdraw_wallet = fields
 
 
 class UserInfo:
@@ -51,8 +53,8 @@ class UserInfo:
     token: str    # уникальный токен пользователя
     name: str    # имя (в коде не используется. Нужно исключительно для понятности в БД.)
     percent: int    # процент от оплаченых счетов, который будет автоматически выводиться
-    withdraw_service: str    # способ вывода (https://dev.lava.ru/methods) + 'lava' для перевода на другой лава кошелек
-    withdraw_wallet: str    # номер счета, на который производится вывод. Подробнее: https://dev.lava.ru/withdrawcreate
+    withdraw_service: str    # Устаревшее! способ вывода (https://dev.lava.ru/methods) + 'lava' для перевода на другой лава кошелек
+    withdraw_wallet: str    # Устаревшее! номер счета, на который производится вывод. Подробнее: https://dev.lava.ru/withdrawcreate
 
     def __init__(self, fields: Tuple = None, token: str = None, name: str = None,
                  percent: int = None, withdraw_service: str = None, withdraw_wallet: str = None):
@@ -63,8 +65,8 @@ class UserInfo:
         :param token: Токен пользователя. Перезаписывает токен из fields.
         :param name: Имя пользователя. Перезаписвает имя из fields.
         :param percent: Процент, получаемый пользователем. Перезаписывает процент из fields.
-        :param withdraw_service: Способ авто-вывода средств. Перезаписывает сервис из fields.
-        :param withdraw_wallet: Номер счета для авто-вывода. Перезаписывает номер счета из fields.
+        :param withdraw_service: Устаревшее! Способ вывода указывается при создании счета. Способ авто-вывода средств. Перезаписывает сервис из fields.
+        :param withdraw_wallet: Устаревшее! Номер кошелька указывается при создании счета. Номер счета для авто-вывода. Перезаписывает номер счета из fields.
         """
         # распаковываем данные из fields
         if len(fields) == 5:
@@ -123,19 +125,18 @@ class DatabaseManager:
         """
         try:
             self.cursor.execute(
-                "INSERT INTO invoices (order_id, creator, status, amount, credited, created, payed, auto_withdraw, comment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                "INSERT INTO invoices (order_id, creator, status, amount, credited, created, payed, auto_withdraw, comment, withdraw_service, withdraw_wallet) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                 (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
                  invoice_info.credited, invoice_info.created, invoice_info.payed,  int(invoice_info.auto_withdraw),
-                 invoice_info.comment))
+                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet))
             "ON DUPLICATE KEY UPDATE "
         except sqlite3.IntegrityError:
             self.cursor.execute(
-                "UPDATE invoices SET order_id = ?, creator = ?, status = ?, amount = ?, credited = ?, created = ?, payed = ?, auto_withdraw = ?, comment = ? WHERE order_id = ?;",
+                "UPDATE invoices SET order_id = ?, creator = ?, status = ?, amount = ?, credited = ?, created = ?, payed = ?, auto_withdraw = ?, comment = ?, withdraw_service = ?, withdraw_wallet = ? WHERE order_id = ?;",
                 (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
                  invoice_info.credited, invoice_info.created, invoice_info.payed, int(invoice_info.auto_withdraw),
-                 invoice_info.comment, invoice_info.order_id))
+                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet, invoice_info.order_id))
         self.connection.commit()
-
 
     def get_user_info(self, token: str) -> UserInfo:
         """
@@ -208,6 +209,12 @@ def __get_all_invoices(connection: Connection, cursor: Cursor):
     return cursor.fetchall()
 
 
+def __migrate(connection: Connection, cursor: Cursor):
+    cursor.execute("ALTER TABLE invoices ADD COLUMN withdraw_service VARCHAR(32);")
+    cursor.execute("ALTER TABLE invoices ADD COLUMN withdraw_wallet VARCHAR(32);")
+    connection.commit()
+
+
 if __name__ == "__main__":
     dbm = DatabaseManager("database.sqlite3")
     #__drop_table(dbm.connection, dbm.cursor)
@@ -219,5 +226,6 @@ if __name__ == "__main__":
     #dbm.save_invoice_info(ii)
     #print(dbm.get_invoice_info("ae8c2701-8f8b-1de9-08a3-d2fce55ddf4e"))
     #__edit_user(dbm.connection, dbm.cursor)
+    #__migrate(dbm.connection, dbm.cursor)
     print(__get_all_users(dbm.connection, dbm.cursor))
     print(__get_all_invoices(dbm.connection, dbm.cursor))
