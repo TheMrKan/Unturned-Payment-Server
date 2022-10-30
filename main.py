@@ -2,12 +2,13 @@
 Основной файл.
 Команда для запуска: uvicorn main:app --reload
 """
-import datetime
+import fastapi
 
 """
 {'invoice_id': 'b0491e7e-590e-9bea-bb64-44432f62dbdd', 'status': 'success', 'pay_time': 1665961760, 'amount': '20.00', 'order_id': None, 'pay_service': 'qiwi', 'payer_details': None, 'custom_fields': '', 'type': 1, 'credited': '19.00', 'merchant_id': 'TestPayment'}
 """
 
+import datetime
 import os
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -18,6 +19,7 @@ from typing import Optional
 import asyncio
 from typing import Dict, Any
 import config as cfg
+from lava_api.business import LavaBusinessAPI
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -122,64 +124,77 @@ async def withdraw(withdraw_service: str, withdraw_wallet: str, amount: float, c
     logger.info(f"[WITHDRAW] Withdraw request successfully created: \nRequest: {fields}; \nResponse: {response};")
 
 
+def get_headers(req: fastapi.Request) -> dict:
+    print(req.headers["Authorization"])
+    return dict(req.headers["Authorization"])
+
+
 @app.post("/payment_service/webhook")
-async def webhook(data: Dict[Any, Any]):
-    logger.info(f"[WEBHOOK] Received: {data}")
+async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
     try:
-        invoice_info = db.get_invoice_info(data.get("invoice_id", "UNDEFINED"))
-    except database.InvoiceNotFoundException:
-        return
-    if invoice_info.status != "created":
-        return
+        logger.info(f"[WEBHOOK] Received: {data}")
 
-    invoice_info.credited = float(data.get("credited", -1))
-    invoice_info.payed = str(datetime.datetime.now())
-    invoice_info.status = "payed"
+        api = LavaBusinessAPI(cfg.TOKEN)
 
-    db.save_invoice_info(invoice_info)
-
-    logger.info(f"[WEBHOOK] Invoice payed: {invoice_info.order_id} {invoice_info.creator} {invoice_info.comment}")
-
-    # если при создании счета был включен автовывод, то выводим средства пользователю
-    if invoice_info.auto_withdraw and invoice_info.credited != -1:
-        try:
-            user = db.get_user_info(invoice_info.creator)
-        except database.UserNotFoundException:
-            logger.error(f"User with token {invoice_info.creator} not found")
-            return {
-                "status": "server error",
-                "code": "-1",
-                "message": "Invalid user token"
-            }
-
-        # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
-        service = invoice_info.withdraw_service
-        wallet = invoice_info.withdraw_wallet
-        if service == "" or wallet == "":
-            service, wallet = user.withdraw_service, user.withdraw_wallet
+        sucessful_invoice_info = api.handle_webhook(data, dict(request.headers))
 
         try:
-            await withdraw(service, wallet, invoice_info.credited * (user.percent / 100),
-                           invoice_info.comment)  # создание запроса на вывод средств
-            invoice_info.status = "withdrawed"
-            db.save_invoice_info(invoice_info)
-        except WithdrawException as ex:  # API вернул статус "error"
-            withdraw_status = "error"
-            withdraw_message = ex.args[0]
-            logger.exception(ex)
+            invoice_info = db.get_invoice_info(data.get("invoice_id", "UNDEFINED"))
+        except database.InvoiceNotFoundException:
+            return
+        if invoice_info.status != "created":
+            return
 
-        balance = await get_balance(cfg.WALLET)
+        invoice_info.credited = float(data.get("credited", -1))
+        invoice_info.payed = str(datetime.datetime.now())
+        invoice_info.status = "payed"
 
-        # вывод средств, полученых с комиссии, администраторам
-        if cfg.ADMIN_AUTOWITHDRAW_ENABLED and balance > cfg.ADMIN_AUTOWITHDRAW_SUM:
-            admins = cfg.ADMIN_AUTOWITHDRAW_USERS
+        db.save_invoice_info(invoice_info)
 
-            for admin_data in admins:
-                try:
-                    await withdraw(admin_data[0], admin_data[1], balance / 100 * admin_data[2], "Admin autowithdraw")
-                    logger.info(f"[ADMIN WITHDRAW] SUCCESS {admin_data}")
-                except WithdrawException as ex:
-                    logger.info(f"[ADMIN WITHDRAW] ERROR {admin_data}; MESSAGE: {ex.args[0]}")
+        logger.info(f"[WEBHOOK] Invoice payed: {invoice_info.order_id} {invoice_info.creator} {invoice_info.comment}")
+
+        # если при создании счета был включен автовывод, то выводим средства пользователю
+        if invoice_info.auto_withdraw and invoice_info.credited != -1:
+            try:
+                user = db.get_user_info(invoice_info.creator)
+            except database.UserNotFoundException:
+                logger.error(f"User with token {invoice_info.creator} not found")
+                return {
+                    "status": "server error",
+                    "code": "-1",
+                    "message": "Invalid user token"
+                }
+
+            # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
+            service = invoice_info.withdraw_service
+            wallet = invoice_info.withdraw_wallet
+            if service == "" or wallet == "":
+                service, wallet = user.withdraw_service, user.withdraw_wallet
+
+            try:
+                await withdraw(service, wallet, invoice_info.credited * (user.percent / 100),
+                               invoice_info.comment)  # создание запроса на вывод средств
+                invoice_info.status = "withdrawed"
+                db.save_invoice_info(invoice_info)
+            except WithdrawException as ex:  # API вернул статус "error"
+                withdraw_status = "error"
+                withdraw_message = ex.args[0]
+                logger.exception(ex)
+
+            balance = await get_balance(cfg.WALLET)
+
+            # вывод средств, полученых с комиссии, администраторам
+            if cfg.ADMIN_AUTOWITHDRAW_ENABLED and balance > cfg.ADMIN_AUTOWITHDRAW_SUM:
+                admins = cfg.ADMIN_AUTOWITHDRAW_USERS
+
+                for admin_data in admins:
+                    try:
+                        await withdraw(admin_data[0], admin_data[1], balance / 100 * admin_data[2], "Admin autowithdraw")
+                        logger.info(f"[ADMIN WITHDRAW] SUCCESS {admin_data}")
+                    except WithdrawException as ex:
+                        logger.info(f"[ADMIN WITHDRAW] ERROR {admin_data}; MESSAGE: {ex.args[0]}")
+    except Exception as ex:
+        logger.exception(ex)
 
 
 @app.post("/payment_service/get_invoice_status")
@@ -227,6 +242,7 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
     :param invoice_request: Информация о счете.
     :return: JSON словарь с информацией
     """
+    api = LavaBusinessAPI(cfg.TOKEN)
     logger.info(f"Create invoice requested: {invoice_request}")
 
     # если пользователь с полученым токеном не найден, то возвращает ошибку
@@ -240,54 +256,46 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
             "message": "Invalid user token"
         }
 
-    # см. https://dev.lava.ru/invoicecreate
-    fields = {
-        "wallet_to": cfg.WALLET,
-        "sum": f"{invoice_request.amount:.2f}",
-        "expire": "600",
-        "merchant_id": user.name,
-        "comment": invoice_request.comment,
-        "hook_url": "http://185.189.255.220:8050/payment_service/webhook"
+    try:
+        lava_invoice_info = await api.create_invoice(invoice_request.amount,
+                                                     cfg.SHOP_ID,
+                                                     expire=60,
+                                                     comment=invoice_request.comment,
+                                                     webhook_url="http://185.189.255.220:8050/payment_service/webhook")
+    except business.CreateInvoiceException as ex:
+        logger.error(f"[API ERROR] Error while creating invoice: \n {ex}")
+        return {
+            "status": "error",
+            "code": ex.code,
+            "message": ex.message
+        }
+    except Exception as ex:
+        logger.error(f"[API INTERNAL ERROR] Internal error while creating invoice: \n {ex}")
+        return {
+            "status": "error",
+            "code": -5,
+            "message": "Internal error"
+        }
+
+    logger.info(f"Invoice created successfully: id = {lava_invoice_info.invoice_id}; "
+                f"sum = {lava_invoice_info.amount}; url = {lava_invoice_info.url}")
+
+    # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
+    service = invoice_request.withdraw_service
+    wallet = invoice_request.withdraw_wallet
+    if service == "" or wallet == "":
+        service, wallet = user.withdraw_service, user.withdraw_wallet
+
+    invoice_info = database.InvoiceInfo((lava_invoice_info.invoice_id, user.token, 'created',
+                                         lava_invoice_info.amount, -1, str(datetime.datetime.now()), "",
+                                         invoice_request.auto_withdraw, lava_invoice_info.comment, service, wallet))
+    db.save_invoice_info(invoice_info)
+
+    return {
+        "status": "success",
+        "id": lava_invoice_info.invoice_id,
+        "url": lava_invoice_info.url
     }
-
-    logger.debug(f"Sending create invoice request with fields: {fields}")
-
-    response = dlltool.send("https://api.lava.ru/invoice/create", "POST", {"Authorization": cfg.TOKEN}, fields)    # отправка данных в API (см. описание модуля)
-
-    logger.debug(f"Got response: {response}")
-
-    # счет успешно выставлен
-    if (status := response.get("status", "error")) == "success":
-
-        logger.info(f"Invoice created successfully: id = {response.get('id', 'UNDEFINED')}; "
-                    f"sum = {invoice_request.amount}; url = {response.get('url', 'UNDEFINED')}")
-
-        # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
-        service = invoice_request.withdraw_service
-        wallet = invoice_request.withdraw_wallet
-        if service == "" or wallet == "":
-            service, wallet = user.withdraw_service, user.withdraw_wallet
-
-        invoice_info = database.InvoiceInfo((response.get('id', 'UNDEFINED'), user.token, 'created',
-                                             invoice_request.amount, -1, str(datetime.datetime.now()), "",
-                                             invoice_request.auto_withdraw, invoice_request.comment, service, wallet))
-        db.save_invoice_info(invoice_info)
-
-        return {
-            "status": status,
-            "id": response.get("id", "UNDEFINED"),
-            "url": response.get("url", "UNDEFINED")
-        }
-    # ошибка при выставлении счета
-    else:
-
-        logger.error(f"[API ERROR] Error while creating invoice: \nRequest fields: {fields} \nResponse: {response}")
-
-        return {
-            "status": status,
-            "code": response.get("code", "UNDEFINED"),
-            "message": response.get("message", "UNDEFINED")
-        }
 
 
 async def test_webhook():
@@ -334,7 +342,7 @@ async def main():
     test_withdraw_response = await withdraw("test", "123456", 1, "Comment")
     print(test_withdraw_response)"""
 
-    print(await get_balance(cfg.WALLET))
+    #print(await get_balance(cfg.WALLET))
 
     #await test_webhook()
 

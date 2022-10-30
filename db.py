@@ -172,7 +172,7 @@ def __create_table(connection: Connection, cursor: Cursor):
         "(order_id VARCHAR(32) NOT NULL, creator VARCHAR(32) NOT NULL, status VARCHAR(32) NOT NULL, "
         "amount REAL NOT NULL, credited REAL NOT NULL, created VARCHAR(32) NOT NULL, "
         "payed VARCHAR(32) NOT NULL, auto_withdraw BIT NOT NULL, "
-        "comment VARCHAR(32) NOT NULL, PRIMARY KEY (order_id));")
+        "comment VARCHAR(32) NOT NULL, withdraw_service VARCHAR(32), withdraw_wallet VARCHAR(32), PRIMARY KEY (order_id));")
     connection.commit()
 
 
