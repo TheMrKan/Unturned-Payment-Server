@@ -1,0 +1,5 @@
+fastapi~=0.85.0
+pydantic~=1.10.2
+requests~=2.28.1
+prettytable~=3.4.1
+Flask~=2.2.2

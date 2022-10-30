@@ -4,6 +4,8 @@
 """
 import datetime
 
+import fastapi
+
 """
 {'invoice_id': 'b0491e7e-590e-9bea-bb64-44432f62dbdd', 'status': 'success', 'pay_time': 1665961760, 'amount': '20.00', 'order_id': None, 'pay_service': 'qiwi', 'payer_details': None, 'custom_fields': '', 'type': 1, 'credited': '19.00', 'merchant_id': 'TestPayment'}
 """
@@ -18,6 +20,7 @@ from typing import Optional
 import asyncio
 from typing import Dict, Any
 import config as cfg
+from fastapi.middleware.cors import CORSMiddleware
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -227,6 +230,7 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
     :param invoice_request: Информация о счете.
     :return: JSON словарь с информацией
     """
+
     logger.info(f"Create invoice requested: {invoice_request}")
 
     # если пользователь с полученым токеном не найден, то возвращает ошибку

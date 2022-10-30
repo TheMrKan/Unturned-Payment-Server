@@ -1,0 +1,237 @@
+<html>
+  <head>
+    <title>Выставление счета</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Zenh87qX5JnK2Jl0vWa8Ck2rdkQ2Bzep5IDxbcnCeuOxjzrPF/et3URy9Bv1WTRi" crossorigin="anonymous">
+  </head>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-OERcA2EqjJCMA+/3y+gxIOqMEjwtxJY7qPCqsdltbNJuaOe923+mo//f6V8Qbsw3" crossorigin="anonymous"></script>
+
+    <script>
+
+
+      function on_checked(el)
+      {
+        service_input = document.getElementById("withdrawServiceInput")
+        wallet_input = document.getElementById("withdrawWalletInput")
+        service_input.disabled = !el.checked;
+        wallet_input.disabled = !el.checked;
+      }
+
+      function create_invoice()
+      {
+        data = {}
+        data["user_token"] = document.getElementById("userTokenInput").value
+        data["amount"] = parseFloat(document.getElementById("amountInput").value)
+        data["expire"] = 600
+        data["comment"] = document.getElementById("commentInput").value
+
+        fields = {"url": "http://185.189.255.220:8050/payment_service/create_invoice", "data": data}
+
+        if (data["user_token"] == '' | isNaN(data["amount"]))
+        {
+          show_error('Необходимо заполнить обязательные поля')
+          return;
+        }
+
+        data["auto_withdraw"] = document.getElementById("autowithdrawEnabled").checked
+
+        if (data["auto_withdraw"] == true)
+        {
+          data["withdraw_service"] = document.getElementById("withdrawServiceInput").value
+          data["withdraw_wallet"] = document.getElementById("withdrawWalletInput").value
+
+          if (data["withdraw_service"] == "" | data["withdraw_wallet"] == "")
+          {
+            show_error('Необходимо заполнить обязательные поля')
+            return;
+          }
+        }
+
+        console.log(fields);
+
+        const dataToSend = JSON.stringify(fields);
+        var dataReceived = "";
+        fetch("http://127.0.0.1:5000/bridge", {
+            method: "POST",
+            headers: new Headers({'Content-Type': 'application/json', 'Access-Control-Allow-Private-Network': true}),
+            body: dataToSend,
+        })
+            .then((response) => response.json())
+            .then((data) => handle_response_create_invoice(data));
+      }
+
+      function getCookie(cname) {
+        let name = cname + "=";
+        let decodedCookie = decodeURIComponent(document.cookie);
+        let ca = decodedCookie.split(';');
+        for(let i = 0; i <ca.length; i++) {
+          let c = ca[i];
+          while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+          }
+          if (c.indexOf(name) == 0) {
+            return c.substring(name.length, c.length);
+          }
+        }
+        return "";
+      }
+
+      function handle_response_create_invoice(resp)
+      {
+        sb = document.getElementById("successBox")
+        eb = document.getElementById("errorBox")
+        document.getElementById("invoiceIdInput").scrollIntoView({block: "center", behavior: "smooth"});
+        if (resp.status == 'success')
+        {
+          document.cookie = 'saved_user_token=' + document.getElementById("userTokenInput").value;
+          show_success("URL для оплаты: <a target='_blank' href='" + resp.url + "'>" + resp.url + '</a><br>ID: ' + resp.id)
+          document.getElementById("invoiceIdInput").value = resp.id;
+
+        }
+        else
+        {
+          show_error("API ошибка: " + resp.message)
+        }
+      }
+
+      function get_invoice_status()
+      {
+        data = {}
+        data["user_token"] = ""
+        data["id"] = document.getElementById("invoiceIdInput").value
+
+        fields = {"url": "http://185.189.255.220:8050/payment_service/get_invoice_status", "data": data}
+
+        const dataToSend = JSON.stringify(fields);
+        var dataReceived = "";
+        fetch("http://127.0.0.1:5000/bridge", {
+            method: "POST",
+            headers: new Headers({'Content-Type': 'application/json', 'Access-Control-Allow-Private-Network': true}),
+            body: dataToSend,
+        })
+            .then((response) => response.json())
+            .then((data) => handle_response_get_invoice_status(data));
+      }
+
+      function handle_response_get_invoice_status(resp)
+      {
+        sb = document.getElementById("invoiceStatusSuccess")
+        eb = document.getElementById("invoiceStatusError")
+        console.log(resp);
+        if (resp.status != 'server error')
+        {
+          sb.hidden = false;
+          eb.hidden = true;
+          sb.innerHTML = "Статус счета: " + resp.status
+        }
+        else
+        {
+          sb.hidden = true;
+          eb.hidden = false;
+          eb.innerHTML = "API ошибка: " + resp.message
+        }
+      }
+
+      function show_error(text)
+      {
+        sb = document.getElementById("successBox")
+        eb = document.getElementById("errorBox")
+        sb.hidden = true;
+        eb.hidden = false;
+        eb.innerHTML = text
+      }
+
+      function show_success(text)
+      {
+        sb = document.getElementById("successBox")
+        eb = document.getElementById("errorBox")
+        sb.hidden = false;
+        eb.hidden = true;
+        sb.innerHTML = text
+      }
+
+    </script>
+    <br>
+    <div class="container" style="background-color: #ebebeb; border-radius: 20px; padding: 20px;">
+      <br>
+      <h1>Выставление счета</h1>
+      <br>
+      <form>
+        <div class="form-group">
+          <label for="userTokenInput">Токен пользователя</label>
+          <input type="text" class="form-control" id="userTokenInput"  placeholder="-RKZEеga7T-27GkEowwR6JпRWfJ9mzVkUW350g-1-w" value="{{saved_user_token}}" required>
+        </div>
+        <br>
+        <div class="form-group">
+          <label for="amountInput">Сумма</label>
+          <input type="number" class="form-control" id="amountInput"  placeholder="15" required>
+        </div>
+        <br>
+        <div class="form-group">
+          <label for="commentInput">Комментарий</label>
+          <input type="text" class="form-control" id="commentInput" placeholder="Разбан">
+        </div>
+        <br>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="autowithdrawEnabled" onchange="on_checked(this)">
+          <label class="form-check-label" for="autowithdrawEnabled">Авто-вывод</label>
+        </div>
+        <br>
+        <div class="form-group">
+          <label for="withdrawServiceInput">Способ вывода</label>
+          <select class="form-control" id="withdrawServiceInput" disabled required>
+            <option>lava</option>
+            <option>qiwi</option>
+            <option>yoomoney</option>
+            <option>card</option>
+            <option>advcash</option>
+            <option>payeer</option>
+            <option>mobile</option>
+            <option>perfect</option>
+          </select>
+        </div>
+        <br>
+        <div class="form-group">
+          <label for="withdrawWalletInput">Номер кошелька</label>
+          <input type="text" class="form-control" id="withdrawWalletInput" placeholder="+79001234567" disabled required>
+        </div>
+        <br>
+      </form>
+      <div class="alert alert-success" role="alert" id="successBox" hidden>
+        This is a success alert—check it out!
+      </div>
+      <div class="alert alert-danger" role="alert" id="errorBox" hidden>
+        This is an error alert—check it out!
+      </div>
+      <button class="btn btn-primary" onclick="create_invoice()">Выставить счет</button>
+      <br>
+      <p>&nbsp</p>
+    </div>
+    <br>
+    <div class="container" style="background-color: #ebebeb; border-radius: 20px; padding: 20px;">
+      <br>
+      <h1>Состояние счета</h1>
+      <br>
+      <form>
+        <div class="form-group">
+          <label for="invoiceIdInput">ID счета</label>
+          <input type="text" class="form-control" id="invoiceIdInput"  placeholder="ae5c2701-8c8b-1de9-08a3-dqf6e55ddf4e" value="{{saved_user_token}}" required>
+        </div>
+        <br>
+
+      </form>
+      <div class="alert alert-success" role="alert" id="invoiceStatusSuccess" hidden>
+        This is a success alert—check it out!
+      </div>
+      <div class="alert alert-danger" role="alert" id="invoiceStatusError" hidden>
+        This is an error alert—check it out!
+      </div>
+      <button class="btn btn-primary" onclick="get_invoice_status()">Получить состояние счета</button>
+      <br>
+      <p>&nbsp</p>
+    </div>
+    <script>
+      document.getElementById("userTokenInput").value = getCookie("saved_user_token");
+    </script>
+  </body>
+</html>
