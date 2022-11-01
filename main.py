@@ -2,6 +2,7 @@
 Основной файл.
 Команда для запуска: uvicorn main:app --reload
 """
+import business
 import fastapi
 
 """
@@ -62,21 +63,6 @@ class WithdrawException(Exception):
     pass
 
 
-async def get_balance(wallet: str) -> float:
-    """
-    Получает текущий баланс кошелька
-
-    :param wallet: Номер кошелька
-    :return: Баланс
-    """
-
-    response = dlltool.send("https://api.lava.ru/wallet/list", "POST", {"Authorization": cfg.TOKEN}, {"empty": "field"})    # см. https://dev.lava.ru/walletlist
-
-    for subdict in response:
-        if subdict.get("account", "") == wallet:
-            return float(subdict.get("balance", 0))
-
-
 async def withdraw(withdraw_service: str, withdraw_wallet: str, amount: float, comment: str) -> None:
     """
     Выводит средства
@@ -86,47 +72,17 @@ async def withdraw(withdraw_service: str, withdraw_wallet: str, amount: float, c
     :param comment: Комментарий
     :return:
     """
+    api = LavaBusinessAPI(cfg.TOKEN)
     amount = float(amount)
     logger.info(f"Withdraw requested: service: {withdraw_service}; "
                 f"wallet: {withdraw_wallet}; amount = {amount}")
 
-    # если сервис вывода - 'lava', то создаем перевод средств между кошельками
-    if withdraw_service == "lava":
-        # см. https://dev.lava.ru/transfercreate
-        fields = {
-            "account_from": cfg.WALLET,
-            "account_to": withdraw_wallet,
-            "amount": f"{amount:.2f}",
-            "comment": comment
-
-        }
-        logger.info(f"Sended transfer request with fields: {fields}")
-        response = dlltool.send("https://api.lava.ru/transfer/create", "POST", {"Authorization": cfg.TOKEN},
-                                fields)  # отправка данных в API (см. описание модуля)
-
-    # иначе создаем вывод средств
-    else:
-        # см. https://dev.lava.ru/withdrawcreate
-        fields = {
-            "account": cfg.WALLET,
-            "amount": f"{amount:.2f}",
-            "service": withdraw_service,
-            "wallet_to": withdraw_wallet
-        }
-        logger.info(f"Sended withdraw request with fields: {fields}")
-        response = dlltool.send("https://api.lava.ru/withdraw/create", "POST", {"Authorization": cfg.TOKEN},
-                                fields)  # отправка данных в API (см. описание модуля)
-
-    if (status := response.get("status", "error")) != "success":
-        logger.error(f"[WITHDRAW] Error while creating withdraw request: \nRequest: {fields};\n Response: {response};")
-        raise WithdrawException(response.get("message", str(response)))
-
-    logger.info(f"[WITHDRAW] Withdraw request successfully created: \nRequest: {fields}; \nResponse: {response};")
-
-
-def get_headers(req: fastapi.Request) -> dict:
-    print(req.headers["Authorization"])
-    return dict(req.headers["Authorization"])
+    try:
+        payoff_id = await api.payoff(cfg.SHOP_ID, amount, withdraw_service, withdraw_wallet)
+        logger.info(f"[WITHDRAW] Withdraw request successfully created: \nRequest: {withdraw_service}({withdraw_wallet}) - {amount}; \nID: {payoff_id};")
+    except (business.APIError, business.InvalidResponseException) as ex:
+        logger.exception(ex)
+        raise WithdrawException
 
 
 @app.post("/payment_service/webhook")
@@ -135,8 +91,8 @@ async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
         logger.info(f"[WEBHOOK] Received: {data}")
 
         api = LavaBusinessAPI(cfg.TOKEN)
-
         sucessful_invoice_info = api.handle_webhook(data, dict(request.headers))
+        print(sucessful_invoice_info)
 
         try:
             invoice_info = db.get_invoice_info(data.get("invoice_id", "UNDEFINED"))
@@ -181,7 +137,7 @@ async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
                 withdraw_message = ex.args[0]
                 logger.exception(ex)
 
-            balance = await get_balance(cfg.WALLET)
+            balance = await api.get_balance(cfg.WALLET)
 
             # вывод средств, полученых с комиссии, администраторам
             if cfg.ADMIN_AUTOWITHDRAW_ENABLED and balance > cfg.ADMIN_AUTOWITHDRAW_SUM:

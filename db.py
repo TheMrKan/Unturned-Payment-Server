@@ -104,7 +104,6 @@ class DatabaseManager:
         :param order_id: Айди счета
         :return: Данные о счете.
         """
-        print(order_id)
         self.cursor.execute("SELECT * FROM invoices WHERE order_id = ?", (order_id,))
 
         rows = self.cursor.fetchall()
