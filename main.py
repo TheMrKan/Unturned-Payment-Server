@@ -12,7 +12,6 @@ import datetime
 import os
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-import dlltool
 import db as database
 import logging
 from typing import Optional
