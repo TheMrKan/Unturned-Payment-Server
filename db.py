@@ -227,4 +227,4 @@ if __name__ == "__main__":
     #__edit_user(dbm.connection, dbm.cursor)
     #__migrate(dbm.connection, dbm.cursor)
     print(__get_all_users(dbm.connection, dbm.cursor))
-    print(__get_all_invoices(dbm.connection, dbm.cursor))
+    #print(__get_all_invoices(dbm.connection, dbm.cursor))

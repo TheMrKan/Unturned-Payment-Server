@@ -2,7 +2,6 @@
 Основной файл.
 Команда для запуска: uvicorn main:app --reload
 """
-import business
 import fastapi
 
 """
@@ -20,7 +19,7 @@ from typing import Optional
 import asyncio
 from typing import Dict, Any
 import config as cfg
-from lava_api.business import LavaBusinessAPI
+from lava_api.business import *
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -80,7 +79,7 @@ async def withdraw(withdraw_service: str, withdraw_wallet: str, amount: float, c
     try:
         payoff_id = await api.payoff(cfg.SHOP_ID, amount, withdraw_service, withdraw_wallet)
         logger.info(f"[WITHDRAW] Withdraw request successfully created: \nRequest: {withdraw_service}({withdraw_wallet}) - {amount}; \nID: {payoff_id};")
-    except (business.APIError, business.InvalidResponseException) as ex:
+    except (APIError, InvalidResponseException) as ex:
         logger.exception(ex)
         raise WithdrawException
 
@@ -218,7 +217,7 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
                                                      expire=60,
                                                      comment=invoice_request.comment,
                                                      webhook_url="http://185.189.255.220:8050/payment_service/webhook")
-    except business.CreateInvoiceException as ex:
+    except CreateInvoiceException as ex:
         logger.error(f"[API ERROR] Error while creating invoice: \n {ex}")
         return {
             "status": "error",
