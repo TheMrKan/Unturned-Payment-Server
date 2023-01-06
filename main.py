@@ -2,7 +2,11 @@
 Основной файл.
 Команда для запуска: uvicorn main:app --reload
 """
+import threading
+import time
+
 import fastapi
+import requests
 
 """
 {'invoice_id': 'b0491e7e-590e-9bea-bb64-44432f62dbdd', 'status': 'success', 'pay_time': 1665961760, 'amount': '20.00', 'order_id': None, 'pay_service': 'qiwi', 'payer_details': None, 'custom_fields': '', 'type': 1, 'credited': '19.00', 'merchant_id': 'TestPayment'}
@@ -19,6 +23,7 @@ import asyncio
 from typing import Dict, Any
 import config as cfg
 from lava_api.business import *
+from starlette.datastructures import Headers
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -32,6 +37,8 @@ class CreateInvoiceRequest(BaseModel):
     auto_withdraw: Optional[bool] = Field(True)  # авто-вывод
     withdraw_service: Optional[str] = ""    # способ вывода (см. https://dev.lava.ru/methods)
     withdraw_wallet: Optional[str] = ""    # номер кошелька для вывода
+    webhook_url: Optional[str] = ""    # URL для отправки вебхука при оплате
+    webhook_field: Optional[str] = ""    # дополнительное поле, которое будет передано в вебхук
 
 
 class InvoiceStatusRequest(BaseModel):
@@ -83,6 +90,92 @@ async def withdraw(withdraw_service: str, withdraw_wallet: str, amount: float, c
         raise WithdrawException
 
 
+def send_webhook(invoice_info: database.InvoiceInfo, custom_field: str):
+    retryings = 5
+    pause = 5000
+
+    for trying in range(retryings):
+
+        try:
+            webhook_data = {
+                "invoice_id": invoice_info.order_id,
+                "sum": invoice_info.amount,
+                "comment": invoice_info.comment,
+                "custom_field": custom_field,
+            }
+            resp = requests.post(invoice_info.webhook_url, json=webhook_data, headers={"User-Id": invoice_info.creator})
+            if resp.status_code != 200:
+                trying += 1
+                logger.error(f"Failed to send webhook with status code {resp.status_code}: id = {invoice_info.order_id}")
+                time.sleep(5)
+                continue
+            logger.info(f"[USER WEBHOOK] Sended successfully: id = {invoice_info.order_id}")
+            return
+        except Exception as ex:
+            trying += 1
+            logger.exception(f"Internal error occured while sending webhook: id = {invoice_info.order_id}", ex)
+            time.sleep(5)
+            continue
+
+
+def build_request(
+    method: str = "GET",
+    server: str = "www.example.com",
+    path: str = "/",
+    headers: dict = None,
+    body: str = None,
+) -> fastapi.Request:
+    if headers is None:
+        headers = {}
+    request = fastapi.Request(
+        {
+            "type": "http",
+            "path": path,
+            "headers": Headers(headers).raw,
+            "http_version": "1.1",
+            "method": method,
+            "scheme": "https",
+            "client": ("127.0.0.1", 8080),
+            "server": (server, 443),
+        }
+    )
+    if body:
+
+        async def request_body():
+            return body
+
+        request.body = request_body
+    return request
+
+
+async def debug_call_webhook(invoice_info: database.InvoiceInfo, custom_fields: str):
+
+    await asyncio.sleep(10)
+
+    api = LavaBusinessAPI(cfg.TOKEN)
+
+    fake_data = {
+        "invoice_id": invoice_info.order_id,
+        "order_id": invoice_info.order_id,
+        "status": "success",
+        "pay_time": int(datetime.datetime.now().timestamp()),
+        "amount": invoice_info.amount,
+        "custom_fields": custom_fields,
+        "credited": invoice_info.amount * 0.95
+    }
+    signature = api.generate_signature(json.dumps(fake_data))
+
+    fake_request = build_request(
+        "POST",
+        "api.lava.ru",
+        "",
+        {"Authorization": signature},
+        json.dumps(fake_data)
+    )
+
+    await webhook(fake_request, fake_data)
+
+
 @app.post("/payment_service/webhook")
 async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
     try:
@@ -99,6 +192,11 @@ async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
         if invoice_info.status != "created":
             return
 
+        data.setdefault("custom_fields", "")
+        if data["custom_fields"] is None:
+            data["custom_fields"] = ""
+        custom_fields = data["custom_fields"]
+
         invoice_info.credited = float(data.get("credited", -1))
         invoice_info.payed = str(datetime.datetime.now())
         invoice_info.status = "payed"
@@ -106,6 +204,10 @@ async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
         db.save_invoice_info(invoice_info)
 
         logger.info(f"[WEBHOOK] Invoice payed: {invoice_info.order_id} {invoice_info.creator} {invoice_info.comment}")
+
+        if invoice_info.webhook_url:
+            send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice_info, custom_fields))
+            send_webhook_thread.start()
 
         # если при создании счета был включен автовывод, то выводим средства пользователю
         if invoice_info.auto_withdraw and invoice_info.credited != -1:
@@ -184,7 +286,7 @@ async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
 
 
 @app.post("/payment_service/create_invoice/")
-async def create_invoice(invoice_request: CreateInvoiceRequest):
+async def create_invoice(request: fastapi.Request, invoice_request: CreateInvoiceRequest):
     """
     Выставление счета.
 
@@ -215,7 +317,8 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
                                                      cfg.SHOP_ID,
                                                      expire=60,
                                                      comment=invoice_request.comment,
-                                                     webhook_url="http://185.189.255.220:8050/payment_service/webhook")
+                                                     webhook_url="http://66.11.116.42:8100/payment_service/webhook",
+                                                     custom_field=invoice_request.webhook_field or None)
     except CreateInvoiceException as ex:
         logger.error(f"[API ERROR] Error while creating invoice: \n {ex}")
         return {
@@ -242,8 +345,18 @@ async def create_invoice(invoice_request: CreateInvoiceRequest):
 
     invoice_info = database.InvoiceInfo((lava_invoice_info.invoice_id, user.token, 'created',
                                          lava_invoice_info.amount, -1, str(datetime.datetime.now()), "",
-                                         invoice_request.auto_withdraw, lava_invoice_info.comment, service, wallet))
+                                         invoice_request.auto_withdraw, lava_invoice_info.comment, service, wallet, invoice_request.webhook_url))
     db.save_invoice_info(invoice_info)
+
+    logger.debug(f"Requested custom field: {invoice_request.webhook_field}")
+
+    if cfg.WEBHOOK_DEBUG:
+
+        asyncio.get_event_loop().create_task(debug_call_webhook(invoice_info, invoice_request.webhook_field))
+        #coroutine = debug_call_webhook(invoice_info, invoice_request.webhook_field)
+        #loop.run_until_complete(coroutine)
+        #webhook_debug_thread = threading.Thread(target=debug_call_webhook, args=(invoice_info, invoice_request.webhook_field))
+        #webhook_debug_thread.start()
 
     return {
         "status": "success",

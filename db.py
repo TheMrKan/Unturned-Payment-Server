@@ -6,6 +6,7 @@ import sqlite3
 from sqlite3.dbapi2 import Cursor, Connection
 import secrets
 from typing import Tuple
+import traceback
 
 
 class UserNotFoundException(Exception):
@@ -37,13 +38,14 @@ class InvoiceInfo:
     withdraw_service: str    # способ вывода
     withdraw_wallet: str    # номер кошелька для вывода
     comment: str    # комментарий
+    webhook_url: str
 
     def __init__(self, fields: Tuple):
-        if len(fields) != 11:
-            raise ValueError(f"Ожидаемое количество элементов в fields: 11. Получено: {len(fields)}")
+        if len(fields) != 12:
+            raise ValueError(f"Ожидаемое количество элементов в fields: 12. Получено: {len(fields)}")
 
         self.order_id, self.creator, self.status, self.amount, self.credited, self.created, \
-            self.payed, self.auto_withdraw, self.comment, self.withdraw_service, self.withdraw_wallet = fields
+            self.payed, self.auto_withdraw, self.comment, self.withdraw_service, self.withdraw_wallet, self.webhook_url = fields
 
 
 class UserInfo:
@@ -124,17 +126,17 @@ class DatabaseManager:
         """
         try:
             self.cursor.execute(
-                "INSERT INTO invoices (order_id, creator, status, amount, credited, created, payed, auto_withdraw, comment, withdraw_service, withdraw_wallet) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                "INSERT INTO invoices (order_id, creator, status, amount, credited, created, payed, auto_withdraw, comment, withdraw_service, withdraw_wallet, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                 (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
                  invoice_info.credited, invoice_info.created, invoice_info.payed,  int(invoice_info.auto_withdraw),
-                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet))
+                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet, invoice_info.webhook_url))
             "ON DUPLICATE KEY UPDATE "
         except sqlite3.IntegrityError:
             self.cursor.execute(
-                "UPDATE invoices SET order_id = ?, creator = ?, status = ?, amount = ?, credited = ?, created = ?, payed = ?, auto_withdraw = ?, comment = ?, withdraw_service = ?, withdraw_wallet = ? WHERE order_id = ?;",
+                "UPDATE invoices SET order_id = ?, creator = ?, status = ?, amount = ?, credited = ?, created = ?, payed = ?, auto_withdraw = ?, comment = ?, withdraw_service = ?, withdraw_wallet = ?, webhook_url = ? WHERE order_id = ?;",
                 (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
                  invoice_info.credited, invoice_info.created, invoice_info.payed, int(invoice_info.auto_withdraw),
-                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet, invoice_info.order_id))
+                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet, invoice_info.order_id, invoice_info.webhook_url))
         self.connection.commit()
 
     def get_user_info(self, token: str) -> UserInfo:
@@ -171,7 +173,7 @@ def __create_table(connection: Connection, cursor: Cursor):
         "(order_id VARCHAR(32) NOT NULL, creator VARCHAR(32) NOT NULL, status VARCHAR(32) NOT NULL, "
         "amount REAL NOT NULL, credited REAL NOT NULL, created VARCHAR(32) NOT NULL, "
         "payed VARCHAR(32) NOT NULL, auto_withdraw BIT NOT NULL, "
-        "comment VARCHAR(32) NOT NULL, withdraw_service VARCHAR(32), withdraw_wallet VARCHAR(32), PRIMARY KEY (order_id));")
+        "comment VARCHAR(32) NOT NULL, withdraw_service VARCHAR(32), withdraw_wallet VARCHAR(32), webhook_url VARCHAR(128) DEFAULT '', PRIMARY KEY (order_id));")
     connection.commit()
 
 
@@ -216,8 +218,19 @@ def __migrate(connection: Connection, cursor: Cursor):
 
 if __name__ == "__main__":
     dbm = DatabaseManager("database.sqlite3")
+
+    '''while (cmd := input("SQL >> ")) != "exit":
+        try:
+            dbm.cursor.execute(cmd)
+            print(dbm.cursor.fetchall())
+            dbm.connection.commit()
+        except Exception as ex:
+            print(ex)
+            continue'''
+
+
     #__drop_table(dbm.connection, dbm.cursor)
-    #__create_table(dbm.connection, dbm.cursor)
+    __create_table(dbm.connection, dbm.cursor)
     #print(__add_user(dbm.connection, dbm.cursor, "LavaWithdraw", 100, "lava", "R10135783"))
     #dbm.get_user_info("-RKZE_bga7T-27GkEowwR6JqRWfJ9mzVkUW3u0g-1-w")
     #ii = InvoiceInfo(("123456-123-1234-123456", "-RKZE_bga7T-27GkEowwR6JqRWfJ9mzVkUW3u0g-1-w", "created",
@@ -226,5 +239,5 @@ if __name__ == "__main__":
     #print(dbm.get_invoice_info("ae8c2701-8f8b-1de9-08a3-d2fce55ddf4e"))
     #__edit_user(dbm.connection, dbm.cursor)
     #__migrate(dbm.connection, dbm.cursor)
-    print(__get_all_users(dbm.connection, dbm.cursor))
+    #print(__get_all_users(dbm.connection, dbm.cursor))
     #print(__get_all_invoices(dbm.connection, dbm.cursor))
