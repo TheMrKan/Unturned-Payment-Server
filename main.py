@@ -234,10 +234,9 @@ async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
                 db.save_invoice_info(invoice_info)
             except WithdrawException as ex:  # API вернул статус "error"
                 withdraw_status = "error"
-                withdraw_message = ex.args[0]
                 logger.exception(ex)
 
-            balance = await api.get_balance(cfg.WALLET)
+            '''balance = await api.get_balance(cfg.WALLET)
 
             # вывод средств, полученых с комиссии, администраторам
             if cfg.ADMIN_AUTOWITHDRAW_ENABLED and balance > cfg.ADMIN_AUTOWITHDRAW_SUM:
@@ -249,6 +248,7 @@ async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
                         logger.info(f"[ADMIN WITHDRAW] SUCCESS {admin_data}")
                     except WithdrawException as ex:
                         logger.info(f"[ADMIN WITHDRAW] ERROR {admin_data}; MESSAGE: {ex.args[0]}")
+            '''
     except Exception as ex:
         logger.exception(ex)
 
