@@ -1,243 +1,154 @@
 """
 Модуль дял работы с базой данных пользователей (SQLite3).
 """
+import asyncio
+import datetime
 
-import sqlite3
-from sqlite3.dbapi2 import Cursor, Connection
+import aiomysql
+from aiomysql import Pool
+import asyncio
 import secrets
 from typing import Tuple
 import traceback
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
+
+import config
 
 
-class UserNotFoundException(Exception):
-    """
-    Пользователь не найден в базе данных.
-    """
-    pass
+class InvoiceStatus(Enum):
+    CREATED = "created"
+    PROCESSING = "processing"
+    SUCCESS = "success"
+    ERROR = "error"
+    TIMEOUT = "timeout"
 
 
-class InvoiceNotFoundException(Exception):
-    """
-    Счет не найден в базе данных.
-    """
-    pass
-
-
+@dataclass
 class InvoiceInfo:
     """
     Содержит информацию о счете.
     """
-    order_id: str    # номер счета
-    creator: str   # токен пользователя, для которого создан счет
-    status: str    # статус счета
-    amount: float    # сумма счета
-    credited: float    # сумма, зачисленная после оплаты счета
-    created: str    # время создания счета
-    payed: str    # время оплаты счета
-    auto_withdraw: bool    # автовывод средств при True
-    withdraw_service: str    # способ вывода
-    withdraw_wallet: str    # номер кошелька для вывода
-    comment: str    # комментарий
+    invoice_id: str  # номер счета
+    status: InvoiceStatus
+    amount: float  # сумма счета
+    credited: float  # сумма, зачисленная после оплаты счета
+    created: datetime.datetime  # время создания счета
+    payed: datetime.datetime | None  # время оплаты счета
+    comment: str  # комментарий
+    custom_fields: str
     webhook_url: str
-
-    def __init__(self, fields: Tuple):
-        if len(fields) != 12:
-            raise ValueError(f"Ожидаемое количество элементов в fields: 12. Получено: {len(fields)}")
-
-        self.order_id, self.creator, self.status, self.amount, self.credited, self.created, \
-            self.payed, self.auto_withdraw, self.comment, self.withdraw_service, self.withdraw_wallet, self.webhook_url = fields
+    payment_method: str | None
+    payment_url: str
+    payment_method_invoice_id: Optional[str | None] = None    # айди счета в системе оплаты
 
 
-class UserInfo:
-    """
-    Содержит информацию о пользователе.
-    """
-    token: str    # уникальный токен пользователя
-    name: str    # имя (в коде не используется. Нужно исключительно для понятности в БД.)
-    percent: int    # процент от оплаченых счетов, который будет автоматически выводиться
-    withdraw_service: str    # Устаревшее! способ вывода (https://dev.lava.ru/methods) + 'lava' для перевода на другой лава кошелек
-    withdraw_wallet: str    # Устаревшее! номер счета, на который производится вывод. Подробнее: https://dev.lava.ru/withdrawcreate
-
-    def __init__(self, fields: Tuple = None, token: str = None, name: str = None,
-                 percent: int = None, withdraw_service: str = None, withdraw_wallet: str = None):
-        """
-        Создает экземпляр класса с данными пользователя по заданым параметрам.
-
-        :param fields: Кортеж данных, получаемых из БД. Порядок: token, name, percent, withdraw_service, withdraw_wallet.
-        :param token: Токен пользователя. Перезаписывает токен из fields.
-        :param name: Имя пользователя. Перезаписвает имя из fields.
-        :param percent: Процент, получаемый пользователем. Перезаписывает процент из fields.
-        :param withdraw_service: Устаревшее! Способ вывода указывается при создании счета. Способ авто-вывода средств. Перезаписывает сервис из fields.
-        :param withdraw_wallet: Устаревшее! Номер кошелька указывается при создании счета. Номер счета для авто-вывода. Перезаписывает номер счета из fields.
-        """
-        # распаковываем данные из fields
-        if len(fields) == 5:
-            self.token, self.name, self.percent, self.withdraw_service, self.withdraw_wallet = fields
-
-        # если параметр указан, то перезаписываем параметр из fields
-        if token is not None:
-            self.token = token
-        if name is not None:
-            self.name = name
-        if percent is not None:
-            self.percent = percent
-        if withdraw_service is not None:
-            self.withdraw_service = withdraw_service
-        if withdraw_wallet is not None:
-            self.withdraw_wallet = withdraw_wallet
+@dataclass
+class PaymentMethod:
+    method_id: str
+    name: str
+    description: str
+    icon_url: str
 
 
 class DatabaseManager:
-    """
-    Предоставляет доступ к базе данных пользователей.
-    """
+    _host: str
+    _user: str
+    _password: str
+    _db_name: str
 
-    def __init__(self, filename: str):
-        """
-        Создает экземпляр менеджера базы данных для указанного файла.
-        :param filename: Путь до файла базы данных.
-        """
-        self.connection = sqlite3.connect(filename)
-        self.cursor = self.connection.cursor()
+    _GET_INVOICES_QUERY = "SELECT * FROM invoices WHERE invoice_id = %s;"
+    _SAVE_INVOICE_QUERY = "INSERT INTO invoices VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) " \
+                          "ON DUPLICATE KEY UPDATE invoice_id = %s, status = %s, amount = %s, credited = %s, created = %s, payed = %s, comment = %s, custom_fields = %s, webhook_url = %s, payment_method = %s, payment_url = %s, payment_method_invoice_id = %s;"
+    _GET_PAYMENT_METHODS_QUERY = "SELECT * FROM payment_methods;"
+    _GET_PAYMENT_METHOD_QUERY = "SELECT * FROM payment_methods WHERE method_id = %s;"
 
-    def get_invoice_info(self, order_id: str) -> InvoiceInfo:
-        """
-        Находит информацию о счете по айди.
-        :param order_id: Айди счета
-        :return: Данные о счете.
-        """
-        self.cursor.execute("SELECT * FROM invoices WHERE order_id = ?", (order_id,))
+    def __init__(self, host: str, user: str, password: str, db_name: str):
+        self._host = host
+        self._user = user
+        self._password = password
+        self._db_name = db_name
 
-        rows = self.cursor.fetchall()
+    def _get_connection(self):
+        return aiomysql.connect(host=self._host, user=self._user, password=self._password, db=self._db_name)
 
-        # если список строк пуст, значит счет не найден
-        if not rows:
-            raise InvoiceNotFoundException(f"Счет с айди {order_id} не найден.")
+    async def get_invoice_info_async(self, invoice_id: str) -> InvoiceInfo | None:
+        async with self._get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(self._GET_INVOICES_QUERY, invoice_id)
+                rows = await cur.fetchall()
 
-        invoice_info = InvoiceInfo(rows[0])
+        if not any(rows):
+            return None
 
-        return invoice_info
+        inv = InvoiceInfo(*rows[0])
+        inv.status = InvoiceStatus(inv.status)
+        return inv
 
-    def save_invoice_info(self, invoice_info: InvoiceInfo):
-        """
-        Сохраняет данные о счете.
-        :param invoice_info: Данные о счете, которые нужно сохранить
-        :return:
-        """
-        try:
-            self.cursor.execute(
-                "INSERT INTO invoices (order_id, creator, status, amount, credited, created, payed, auto_withdraw, comment, withdraw_service, withdraw_wallet, webhook_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
-                (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
-                 invoice_info.credited, invoice_info.created, invoice_info.payed,  int(invoice_info.auto_withdraw),
-                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet, invoice_info.webhook_url))
-            "ON DUPLICATE KEY UPDATE "
-        except sqlite3.IntegrityError:
-            self.cursor.execute(
-                "UPDATE invoices SET order_id = ?, creator = ?, status = ?, amount = ?, credited = ?, created = ?, payed = ?, auto_withdraw = ?, comment = ?, withdraw_service = ?, withdraw_wallet = ?, webhook_url = ? WHERE order_id = ?;",
-                (invoice_info.order_id, invoice_info.creator, invoice_info.status, invoice_info.amount,
-                 invoice_info.credited, invoice_info.created, invoice_info.payed, int(invoice_info.auto_withdraw),
-                 invoice_info.comment, invoice_info.withdraw_service, invoice_info.withdraw_wallet, invoice_info.order_id, invoice_info.webhook_url))
-        self.connection.commit()
+    async def save_invoice_info_async(self, invoice_info: InvoiceInfo):
+        async with self._get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(self._SAVE_INVOICE_QUERY,
+                                  (invoice_info.invoice_id, invoice_info.status.value, invoice_info.amount,
+                                   invoice_info.credited, invoice_info.created, invoice_info.payed,
+                                   invoice_info.comment, invoice_info.custom_fields,
+                                   invoice_info.webhook_url, invoice_info.payment_method, invoice_info.payment_url, invoice_info.payment_method_invoice_id, invoice_info.invoice_id, invoice_info.status.value,
+                                   invoice_info.amount,
+                                   invoice_info.credited, invoice_info.created, invoice_info.payed,
+                                   invoice_info.comment, invoice_info.custom_fields,
+                                   invoice_info.webhook_url, invoice_info.payment_method, invoice_info.payment_url, invoice_info.payment_method_invoice_id))
+                await conn.commit()
 
-    def get_user_info(self, token: str) -> UserInfo:
-        """
-        Находит информацию о пользователе по токену.
+    async def get_payment_methods_async(self) -> list[PaymentMethod]:
+        async with self._get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(self._GET_PAYMENT_METHODS_QUERY)
+                rows = await cur.fetchall()
 
-        :param token: Токен пользователя. Указывается в настройках плагина и передается в запросе create_invoice в поле merchant_token.
-        :return: Данные о пользователе.
-        :raises UserNotFoundException: Пользователь с указаным токеном не найден.
-        """
-        self.cursor.execute("SELECT * FROM users WHERE token = ?", (token, ))
+        if not any(rows):
+            return []
+        return [PaymentMethod(*r) for r in rows]
 
-        rows = self.cursor.fetchall()
+    async def get_payment_method_async(self, method_id: str) -> PaymentMethod | None:
+        async with self._get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(self._GET_PAYMENT_METHOD_QUERY, method_id)
+                rows = await cur.fetchall()
 
-        # если список строк пуст, значит пользователь не найден
-        if not rows:
-            raise UserNotFoundException(f"Пользователь с токеном {token} не найден.")
+        if not any(rows):
+            return None
 
-        user_info = UserInfo(rows[0])    # получаем информацию из первого пользователя в списке
+        return PaymentMethod(*rows[0])
 
-        return user_info
-
-
-# служебные функции для изменения и просмотра БД. Использовать только при запуске скрипта напрямую.
-
-
-def __create_table(connection: Connection, cursor: Cursor):
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS users "
-        "(token VARCHAR(32) NOT NULL, name VARCHAR(32) NOT NULL, percent INT UNSIGNED NOT NULL, "
-        "withdraw_service VARCHAR(16) NOT NULL, withdraw_wallet VARCHAR(32), PRIMARY KEY (token, name));")
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS invoices "
-        "(order_id VARCHAR(32) NOT NULL, creator VARCHAR(32) NOT NULL, status VARCHAR(32) NOT NULL, "
-        "amount REAL NOT NULL, credited REAL NOT NULL, created VARCHAR(32) NOT NULL, "
-        "payed VARCHAR(32) NOT NULL, auto_withdraw BIT NOT NULL, "
-        "comment VARCHAR(32) NOT NULL, withdraw_service VARCHAR(32), withdraw_wallet VARCHAR(32), webhook_url VARCHAR(128) DEFAULT '', PRIMARY KEY (order_id));")
-    connection.commit()
+    async def create_tables_async(self):
+        async with self._get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS invoices "
+                    "(invoice_id VARCHAR(36) NOT NULL, status VARCHAR(32) NOT NULL DEFAULT 'created', "
+                    "amount REAL NOT NULL, credited REAL NOT NULL, created DATETIME NOT NULL, "
+                    "payed DATETIME, comment VARCHAR(256) NOT NULL DEFAULT '',"
+                    "custom_fields VARCHAR(128) NOT NULL DEFAULT '{}', webhook_url VARCHAR(128) NOT NULL DEFAULT '', payment_method VARCHAR(32), payment_url VARCHAR(512) NOT NULL, payment_method_invoice_id VARCHAR(128), PRIMARY KEY (invoice_id));")
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS payment_methods "
+                    "(method_id VARCHAR(32) NOT NULL, name VARCHAR(64) NOT NULL, description VARCHAR(256) DEFAULT '', icon_url VARCHAR(256) NOT NULL, PRIMARY KEY (method_id));"
+                )
+                await conn.commit()
 
 
-def __drop_table(connection: Connection, cursor: Cursor):
-    cursor.execute("DROP TABLE IF EXISTS invoices;")
-    connection.commit()
+async def debug():
+    manager = DatabaseManager(config.MYSQL_HOST, config.MYSQL_USER, config.MYSQL_PASSWORD, config.MYSQL_DATABASE)
 
+    await manager.create_tables_async()
 
-def __add_user(connection: Connection, cursor: Cursor, name: str, percent: int, withdraw_service: str, withdraw_wallet: str, token: str = None):
-    if token is None:
-        token = secrets.token_urlsafe(32)    # генерирует токен из случайных символов длиной 32 символа
+    #invoice = InvoiceInfo("test_inv", InvoiceStatus.CREATED, 10, 10, "2024-27-03 22:25:00", None, "comment", "", "", None, "")
+    #await manager.save_invoice_info_async(invoice)
 
-    cursor.execute("INSERT INTO users (token, name, percent, withdraw_service, withdraw_wallet) VALUES (?, ?, ?, ?, ?);",
-                   (token, name, percent, withdraw_service, withdraw_wallet))
-    connection.commit()
-
-    return token
-
-
-def __edit_user(connection: Connection, cursor: Cursor):
-    cursor.execute("UPDATE users SET withdraw_service='lava', withdraw_wallet='R10135783' WHERE name = 'TestUser';")
-    connection.commit()
-
-
-def __get_all_users(connection: Connection, cursor: Cursor):
-    cursor.execute("SELECT * FROM users")
-
-    return cursor.fetchall()
-
-
-def __get_all_invoices(connection: Connection, cursor: Cursor):
-    cursor.execute("SELECT * FROM invoices")
-
-    return cursor.fetchall()
-
-
-def __migrate(connection: Connection, cursor: Cursor):
-    cursor.execute("ALTER TABLE invoices ADD COLUMN withdraw_service VARCHAR(32);")
-    cursor.execute("ALTER TABLE invoices ADD COLUMN withdraw_wallet VARCHAR(32);")
-    connection.commit()
+    #invoice = await manager.get_invoice_info_async("test_inv")
+    #print(invoice)
 
 
 if __name__ == "__main__":
-    dbm = DatabaseManager("database.sqlite3")
+    asyncio.run(debug(), debug=True)
 
-    '''while (cmd := input("SQL >> ")) != "exit":
-        try:
-            dbm.cursor.execute(cmd)
-            print(dbm.cursor.fetchall())
-            dbm.connection.commit()
-        except Exception as ex:
-            print(ex)
-            continue'''
-
-
-    #__drop_table(dbm.connection, dbm.cursor)
-    __create_table(dbm.connection, dbm.cursor)
-    #print(__add_user(dbm.connection, dbm.cursor, "LavaWithdraw", 100, "lava", "R10135783"))
-    #dbm.get_user_info("-RKZE_bga7T-27GkEowwR6JqRWfJ9mzVkUW3u0g-1-w")
-    #ii = InvoiceInfo(("123456-123-1234-123456", "-RKZE_bga7T-27GkEowwR6JqRWfJ9mzVkUW3u0g-1-w", "created",
-                      #20, 19, "1:1:1 1:1:1", "2:3:1 1:1:1", True, "Comment"))
-    #dbm.save_invoice_info(ii)
-    #print(dbm.get_invoice_info("ae8c2701-8f8b-1de9-08a3-d2fce55ddf4e"))
-    #__edit_user(dbm.connection, dbm.cursor)
-    #__migrate(dbm.connection, dbm.cursor)
-    #print(__get_all_users(dbm.connection, dbm.cursor))
-    #print(__get_all_invoices(dbm.connection, dbm.cursor))

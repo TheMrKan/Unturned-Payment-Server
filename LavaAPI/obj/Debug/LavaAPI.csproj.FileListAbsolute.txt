@@ -1,9 +1,0 @@
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\bin\Debug\LavaAPI.dll
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\bin\Debug\LavaAPI.pdb
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\obj\Debug\LavaAPI.csproj.AssemblyReference.cache
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\obj\Debug\LavaAPI.csproj.CoreCompileInputs.cache
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\obj\Debug\LavaAPI.dll
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\obj\Debug\LavaAPI.pdb
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\bin\Debug\Newtonsoft.Json.dll
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\bin\Debug\Newtonsoft.Json.xml
-C:\Users\egork\PycharmProjects\Some shit\LavaAuthorizationServer\LavaAPI\obj\Debug\LavaAPI.csproj.CopyComplete

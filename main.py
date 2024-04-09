@@ -7,183 +7,118 @@ import time
 
 import fastapi
 import requests
-
-"""
-{'invoice_id': 'b0491e7e-590e-9bea-bb64-44432f62dbdd', 'status': 'success', 'pay_time': 1665961760, 'amount': '20.00', 'order_id': None, 'pay_service': 'qiwi', 'payer_details': None, 'custom_fields': '', 'type': 1, 'credited': '19.00', 'merchant_id': 'TestPayment'}
-"""
-
 import datetime
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+import config
 import db as database
 import logging
-from typing import Optional
+from typing import Optional, Annotated
 import asyncio
 from typing import Dict, Any
 import config as cfg
-from lava_api.business import *
 from starlette.datastructures import Headers
-
-
-class CreateInvoiceRequest(BaseModel):
-    """
-    Модель запроса для выставления счета.
-    """
-    user_token: str    # токен пользователя
-    amount: int    # сумма счета
-    expire: int    # время жизни счета (по каким-то причинам не работает)
-    comment: Optional[str] = Field("")   # комментарий
-    auto_withdraw: Optional[bool] = Field(True)  # авто-вывод
-    withdraw_service: Optional[str] = ""    # способ вывода (см. https://dev.lava.ru/methods)
-    withdraw_wallet: Optional[str] = ""    # номер кошелька для вывода
-    webhook_url: Optional[str] = ""    # URL для отправки вебхука при оплате
-    webhook_field: Optional[str] = ""    # дополнительное поле, которое будет передано в вебхук
-
-
-class InvoiceStatusRequest(BaseModel):
-    """
-    Модель запроса для получения информации о счете.
-    """
-    user_token: str    # токен пользователя
-    id: str    # айди счета, состояние которого необходимо получить
-    auto_withdraw: Optional[bool] = Field(False)   # необязательный параметр. Если True, то после оплаты счета средства будут автоматически выведены
+from dataclasses import dataclass
+from invoice_manager import InvoiceManager, InvalidInvoiceStatusError, InvalidInvoiceError, InvalidPaymentMethodError, PaymentSystemError
 
 
 app = FastAPI(docs_url=None, redoc_url=None)    # docs_url и redoc_url отключают автоматическую документацию
-db = database.DatabaseManager("database.sqlite3")    # экземпляр класса для доступа к данным из БД.
+db = database.DatabaseManager(cfg.MYSQL_HOST, cfg.MYSQL_USER, cfg.MYSQL_PASSWORD, cfg.MYSQL_DATABASE)    # экземпляр класса для доступа к данным из БД.
+invoice_manager = InvoiceManager(db)
+
+
+origins = [
+    "https://untstrong.ru",
+    "null"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 logger = logging.getLogger("payment_api_logger")
 logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler('logs/payment_api.log')
-fh.setFormatter(logging.Formatter(fmt='[%(asctime)s: %(levelname)s] %(message)s'))
-fh.setLevel(logging.DEBUG)
-logger.addHandler(fh)
+if not cfg.DEBUG:
+    fh = logging.FileHandler(f'logs/log_{datetime.datetime.now().strftime("%m-%d-%Y-%H-%M-%S")}.log')
+    fh.setFormatter(logging.Formatter(fmt='[%(asctime)s: %(levelname)s] %(message)s'))
+    fh.setLevel(logging.DEBUG)
+    logger.addHandler(fh)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+logger.addHandler(ch)
 
 
-class WithdrawException(Exception):
-    """
-    При выводе средств произошла ошибка
-    """
-    pass
+class APIException(Exception):
+    def __init__(self, code: int | str, message: str):
+        self.code = int(code)
+        self.message = message
 
 
-async def withdraw(withdraw_service: str, withdraw_wallet: str, amount: float, comment: str) -> None:
-    """
-    Выводит средства
-    :param withdraw_service: Способ вывода (см. https://dev.lava.ru/methods)
-    :param withdraw_wallet: Номер кошелька для вывода
-    :param amount: Сумма
-    :param comment: Комментарий
-    :return:
-    """
-    api = LavaBusinessAPI(cfg.TOKEN)
-    amount = float(amount)
-    logger.info(f"Withdraw requested: service: {withdraw_service}; "
-                f"wallet: {withdraw_wallet}; amount = {amount}")
-
-    try:
-        payoff_id = await api.payoff(cfg.SHOP_ID, amount, withdraw_service, withdraw_wallet)
-        logger.info(f"[WITHDRAW] Withdraw request successfully created: \nRequest: {withdraw_service}({withdraw_wallet}) - {amount}; \nID: {payoff_id};")
-    except (APIError, InvalidResponseException) as ex:
-        logger.exception(ex)
-        raise WithdrawException
+@app.exception_handler(APIException)
+def api_exception_handler(request: Request, exc: APIException):
+    return JSONResponse(status_code=exc.code,
+                        content={"status": "error", "code": str(exc.code), "message": exc.message, "detail": exc.message})
 
 
-def send_webhook(invoice_info: database.InvoiceInfo, custom_field: str):
+def send_webhook(invoice_info: database.InvoiceInfo):
     retryings = 5
-    pause = 5000
+    pause = 5
 
     for trying in range(retryings):
 
         try:
             webhook_data = {
-                "invoice_id": invoice_info.order_id,
+                "invoice_id": invoice_info.invoice_id,
                 "sum": invoice_info.amount,
                 "comment": invoice_info.comment,
-                "custom_field": custom_field,
+                "custom_field": invoice_info.custom_fields,
             }
-            resp = requests.post(invoice_info.webhook_url, json=webhook_data, headers={"User-Id": invoice_info.creator})
+            resp = requests.post(invoice_info.webhook_url, json=webhook_data, headers={"User-Id": config.AUTH_TOKEN})
             if resp.status_code != 200:
-                trying += 1
-                logger.error(f"Failed to send webhook with status code {resp.status_code}: id = {invoice_info.order_id}")
-                time.sleep(5)
+                logger.error(f"Failed to send webhook with status code {resp.status_code}: id = {invoice_info.invoice_id}")
+                time.sleep(pause)
                 continue
-            logger.info(f"[USER WEBHOOK] Sended successfully: id = {invoice_info.order_id}")
+            logger.info(f"[USER WEBHOOK] Sended successfully: id = {invoice_info.invoice_id}")
             return
         except Exception as ex:
-            trying += 1
-            logger.exception(f"Internal error occured while sending webhook: id = {invoice_info.order_id}", ex)
-            time.sleep(5)
+            logger.exception(f"Internal error occured while sending webhook: id = {invoice_info.invoice_id}", exc_info=ex)
+            time.sleep(pause)
             continue
 
 
-def build_request(
-    method: str = "GET",
-    server: str = "www.example.com",
-    path: str = "/",
-    headers: dict = None,
-    body: str = None,
-) -> fastapi.Request:
-    if headers is None:
-        headers = {}
-    request = fastapi.Request(
-        {
-            "type": "http",
-            "path": path,
-            "headers": Headers(headers).raw,
-            "http_version": "1.1",
-            "method": method,
-            "scheme": "https",
-            "client": ("127.0.0.1", 8080),
-            "server": (server, 443),
-        }
-    )
-    if body:
+@app.post("/payment_service/aaio_webhook/")
+@app.post("/payment_service/aaio_webhook")
+async def aaio_webhook(invoice_id=Form(), order_id=Form(), amount=Form(), currency=Form(), sign=Form(), profit=Form()):
+    if not InvoiceManager.check_aaio_sign(str(sign), str(amount), str(currency), str(order_id)):
+        logger.error(f"[AAIO WEBHOOK] Failed to check sign: invoice_id={invoice_id}, order_id={order_id}, amount={amount}, currency={currency}, sign={sign}")
 
-        async def request_body():
-            return body
+    try:
+        invoice = await invoice_manager.set_invoice_payed_async(str(order_id), float(profit), payment_method_invoice_id=str(invoice_id))
+    except Exception as ex:
+        logger.error(f"[AAIO WEBHOOK] Failed to handle: invoice_id={invoice_id}, order_id={order_id}, amount={amount}, currency={currency}, sign={sign}", exc_info=ex)
+        return
 
-        request.body = request_body
-    return request
+    if invoice.webhook_url:
+        send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice,))
+        send_webhook_thread.start()
 
 
-async def debug_call_webhook(invoice_info: database.InvoiceInfo, custom_fields: str):
-
-    await asyncio.sleep(10)
-
-    api = LavaBusinessAPI(cfg.TOKEN)
-
-    fake_data = {
-        "invoice_id": invoice_info.order_id,
-        "order_id": invoice_info.order_id,
-        "status": "success",
-        "pay_time": int(datetime.datetime.now().timestamp()),
-        "amount": invoice_info.amount,
-        "custom_fields": custom_fields,
-        "credited": invoice_info.amount * 0.95
-    }
-    signature = api.generate_signature(json.dumps(fake_data))
-
-    fake_request = build_request(
-        "POST",
-        "api.lava.ru",
-        "",
-        {"Authorization": signature},
-        json.dumps(fake_data)
-    )
-
-    await webhook(fake_request, fake_data)
-
-
-@app.post("/payment_service/webhook")
+'''@app.post("/payment_service/webhook")
 async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
     try:
         logger.info(f"[WEBHOOK] Received: {data}")
 
-        api = LavaBusinessAPI(cfg.TOKEN)
+        api = LavaBusinessAPI(cfg.KEY)
         sucessful_invoice_info = api.handle_webhook(data, dict(request.headers))
-        print(sucessful_invoice_info)
+        #print(sucessful_invoice_info)
 
         try:
             invoice_info = db.get_invoice_info(data.get("invoice_id", "UNDEFINED"))
@@ -200,221 +135,105 @@ async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
         invoice_info.credited = float(data.get("credited", -1))
         invoice_info.payed = str(datetime.datetime.now())
         invoice_info.status = "payed"
-
+        #print(f"Invoice info before save: {invoice_info.credited} {invoice_info.payed} {invoice_info.status}")
         db.save_invoice_info(invoice_info)
-
+        _invoice_info = db.get_invoice_info(invoice_info.order_id)
+        #print(f"Invoice info after save: {_invoice_info.credited} {_invoice_info.payed} {_invoice_info.status}")
         logger.info(f"[WEBHOOK] Invoice payed: {invoice_info.order_id} {invoice_info.creator} {invoice_info.comment}")
 
         if invoice_info.webhook_url:
             send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice_info, custom_fields))
             send_webhook_thread.start()
 
-        # если при создании счета был включен автовывод, то выводим средства пользователю
-        if invoice_info.auto_withdraw and invoice_info.credited != -1:
-            try:
-                user = db.get_user_info(invoice_info.creator)
-            except database.UserNotFoundException:
-                logger.error(f"User with token {invoice_info.creator} not found")
-                return {
-                    "status": "server error",
-                    "code": "-1",
-                    "message": "Invalid user token"
-                }
-
-            # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
-            service = invoice_info.withdraw_service
-            wallet = invoice_info.withdraw_wallet
-            if service == "" or wallet == "":
-                service, wallet = user.withdraw_service, user.withdraw_wallet
-
-            try:
-                await withdraw(service, wallet, invoice_info.credited * (user.percent / 100),
-                               invoice_info.comment)  # создание запроса на вывод средств
-                invoice_info.status = "withdrawed"
-                db.save_invoice_info(invoice_info)
-            except WithdrawException as ex:  # API вернул статус "error"
-                withdraw_status = "error"
-                logger.exception(ex)
-
-            '''balance = await api.get_balance(cfg.WALLET)
-
-            # вывод средств, полученых с комиссии, администраторам
-            if cfg.ADMIN_AUTOWITHDRAW_ENABLED and balance > cfg.ADMIN_AUTOWITHDRAW_SUM:
-                admins = cfg.ADMIN_AUTOWITHDRAW_USERS
-
-                for admin_data in admins:
-                    try:
-                        await withdraw(admin_data[0], admin_data[1], balance / 100 * admin_data[2], "Admin autowithdraw")
-                        logger.info(f"[ADMIN WITHDRAW] SUCCESS {admin_data}")
-                    except WithdrawException as ex:
-                        logger.info(f"[ADMIN WITHDRAW] ERROR {admin_data}; MESSAGE: {ex.args[0]}")
-            '''
     except Exception as ex:
-        logger.exception(ex)
+        logger.exception(ex)'''
 
 
-@app.post("/payment_service/get_invoice_status")
-async def get_invoice_status(invoice_status_request: InvoiceStatusRequest):
+@dataclass
+class ResponseCreateInvoice:
+    status: str
+    id: str
+    url: str
 
-    try:
-        invoice_info = db.get_invoice_info(invoice_status_request.id)
-    except database.InvoiceNotFoundException:
-        return {
-            "status": "server error",
-            "code": "-2",
-            "message": "Invalid invoice id"
-        }
 
-    if invoice_info.status == 'payed':
-        return {
-            "status": "success",
-            "withdraw_status": "waiting" if invoice_info.auto_withdraw else "disabled",
-            "withdraw_message": ""
-        }
-    elif invoice_info.status == "withdrawed":
-        return {
-            "status": "success",
-            "withdraw_status": "success",
-            "withdraw_message": ""
-        }
-    elif invoice_info.status == "created":
-        return {
-            "status": "pending",
-            "withdraw_status": "disabled",
-            "withdraw_message": ""
-        }
+class CreateInvoiceRequest(BaseModel):
+    user_token: str
+    amount: int    # сумма счета
+    comment: Optional[str] = Field("")   # комментарий
+    webhook_url: Optional[str] = ""    # URL для отправки вебхука при оплате
+    webhook_field: Optional[str] = ""    # дополнительное поле, которое будет передано в вебхук
 
 
 @app.post("/payment_service/create_invoice/")
-async def create_invoice(request: fastapi.Request, invoice_request: CreateInvoiceRequest):
-    """
-    Выставление счета.
-
-    Счет успешно выставлен: {"status": "success", "id": "айди счета в системе Lava", "url": "url для оплаты"}.
-
-    Ошибка при выставлении счета: {"status": "error", "code": "код ошибки (см. https://dev.lava.ru/errors)",
-    "message": "сообщение об ошибке от Lava"}
-
-    :param invoice_request: Информация о счете.
-    :return: JSON словарь с информацией
-    """
-    api = LavaBusinessAPI(cfg.TOKEN)
-    logger.info(f"Create invoice requested: {invoice_request}")
-
-    # если пользователь с полученым токеном не найден, то возвращает ошибку
-    try:
-        user = db.get_user_info(invoice_request.user_token)
-    except database.UserNotFoundException:
-        logger.error(f"User with token {invoice_request.user_token} not found")
-        return {
-            "status": "server error",
-            "code": "-1",
-            "message": "Invalid user token"
-        }
+@app.post("/payment_service/create_invoice")
+async def create_invoice(request: fastapi.Request, invoice_request: CreateInvoiceRequest) -> ResponseCreateInvoice:
+    if invoice_request.user_token != config.AUTH_TOKEN:
+        raise APIException(403, "Invalid user token")
 
     try:
-        lava_invoice_info = await api.create_invoice(invoice_request.amount,
-                                                     cfg.SHOP_ID,
-                                                     expire=60,
-                                                     comment=invoice_request.comment,
-                                                     webhook_url="http://66.11.116.42:8100/payment_service/webhook",
-                                                     custom_field=invoice_request.webhook_field or None)
-    except CreateInvoiceException as ex:
-        logger.error(f"[API ERROR] Error while creating invoice: \n {ex}")
-        return {
-            "status": "error",
-            "code": ex.code,
-            "message": ex.message
-        }
+        invoice = await invoice_manager.create_invoice_async(invoice_request.amount, invoice_request.comment, invoice_request.webhook_field, invoice_request.webhook_url)
+        return ResponseCreateInvoice("success", invoice.invoice_id, invoice.payment_url)
     except Exception as ex:
-        logger.error(f"[API INTERNAL ERROR] Internal error while creating invoice: \n {ex}")
-        return {
-            "status": "error",
-            "code": -5,
-            "message": "Internal error"
-        }
-
-    logger.info(f"Invoice created successfully: id = {lava_invoice_info.invoice_id}; "
-                f"sum = {lava_invoice_info.amount}; url = {lava_invoice_info.url}")
-
-    # если при создании запроса небыл указан способ или кошелек, то берем стандартные для аккаунта
-    service = invoice_request.withdraw_service
-    wallet = invoice_request.withdraw_wallet
-    if service == "" or wallet == "":
-        service, wallet = user.withdraw_service, user.withdraw_wallet
-
-    invoice_info = database.InvoiceInfo((lava_invoice_info.invoice_id, user.token, 'created',
-                                         lava_invoice_info.amount, -1, str(datetime.datetime.now()), "",
-                                         invoice_request.auto_withdraw, lava_invoice_info.comment, service, wallet, invoice_request.webhook_url))
-    db.save_invoice_info(invoice_info)
-
-    logger.debug(f"Requested custom field: {invoice_request.webhook_field}")
-
-    if cfg.WEBHOOK_DEBUG:
-
-        asyncio.get_event_loop().create_task(debug_call_webhook(invoice_info, invoice_request.webhook_field))
-        #coroutine = debug_call_webhook(invoice_info, invoice_request.webhook_field)
-        #loop.run_until_complete(coroutine)
-        #webhook_debug_thread = threading.Thread(target=debug_call_webhook, args=(invoice_info, invoice_request.webhook_field))
-        #webhook_debug_thread.start()
-
-    return {
-        "status": "success",
-        "id": lava_invoice_info.invoice_id,
-        "url": lava_invoice_info.url
-    }
+        logger.exception("An error occured in create_invoice", exc_info=ex)
+        raise APIException(500, "Internal server error")
 
 
-async def test_webhook():
-    test_invoice_info = database.InvoiceInfo(("test_invoice_1234", "R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo", 'created',
-                                             10, -1, str(datetime.datetime.now()), "",
-                                             True, "Webhook test", "qiwi", "+79608357711"))
-    db.save_invoice_info(test_invoice_info)
+@dataclass
+class RequestProcessInvoice:
+    invoice_id: str
+    method_id: str
 
-    lava_data_emitter = {
-        "invoice_id": "test_invoice_1234",
-        "credited": 0,
-    }
-    webhook_response = await webhook(lava_data_emitter)
 
-    print("Webhook response:", webhook_response)
+@dataclass
+class ResponseProcessInvoice:
+    status: str
+    id: str
+    payment_url: str
+
+
+@app.post("/payment_service/process_invoice/")
+@app.post("/payment_service/process_invoice")
+async def process_invoice(request: RequestProcessInvoice) -> ResponseProcessInvoice:
+    try:
+        invoice = await invoice_manager.process_invoice_async(request.invoice_id, request.method_id)
+        return ResponseProcessInvoice("success", invoice.invoice_id, invoice.payment_url)
+    except InvalidInvoiceError as ex:
+        logger.exception(str(ex), exc_info=ex)
+        raise APIException(404, str(ex))
+    except InvalidInvoiceStatusError as ex:
+        logger.exception(str(ex), exc_info=ex)
+        raise APIException(409, str(ex))
+    except InvalidPaymentMethodError as ex:
+        logger.exception(str(ex), exc_info=ex)
+        raise APIException(405, str(ex))
+    except PaymentSystemError as ex:
+        logger.exception(str(ex), exc_info=ex)
+        raise APIException(500, str(ex))
+
+    except Exception as ex:
+        logger.exception("An error occured in process_invoice", exc_info=ex)
+        raise APIException(500, "Internal server error")
+
+
+@dataclass
+class PaymentMethod:
+    id: str
+    name: str
+    description: str
+    icon_url: str
+
+
+@app.get("/payment_service/methods/")
+@app.get("/payment_service/methods")
+async def get_payment_methods() -> list[PaymentMethod]:
+    methods = await db.get_payment_methods_async()
+    return [PaymentMethod(m.method_id, m.name, m.description, m.icon_url) for m in methods]
 
 
 # только для тестирования
-async def main():
-    '''test_invoice_creation_request = CreateInvoiceRequest(user_token="R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo",
-                                                         amount=20, expire=60)
-    test_invoice_response = await create_invoice(test_invoice_creation_request)
-
-    print(test_invoice_response)
-
-    test_invoice_status_request = InvoiceStatusRequest(id=test_invoice_response.get("id", "UNDEFINED"),
-                         user_token="R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo", auto_withdraw=True)
-
-    tryings_left = 10
-    while tryings_left > 0:
-        print(f"Waiting for payment... Trying: {10 - tryings_left}")
-        test_invoice_status = await get_invoice_status(test_invoice_status_request)
-        print(test_invoice_status)
-
-        if test_invoice_status.get("status", "pending") == "success":
-            break
-
-        tryings_left -= 1
-        await asyncio.sleep(10)
-
-    print("RESULT: ", test_invoice_status)'''
-
-    """user = db.get_user_info("R9V5-qb47j34w9nMXNxmZEiqFVqDn1HZwojxnaOdPHo")
-    test_withdraw_response = await withdraw("test", "123456", 1, "Comment")
-    print(test_withdraw_response)"""
-
-    #print(await get_balance(cfg.WALLET))
-
-    #await test_webhook()
-
+async def debug():
     pass
 
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=True)
+    asyncio.run(debug(), debug=True)
