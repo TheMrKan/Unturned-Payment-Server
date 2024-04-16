@@ -111,44 +111,6 @@ async def aaio_webhook(invoice_id=Form(), order_id=Form(), amount=Form(), curren
         send_webhook_thread.start()
 
 
-'''@app.post("/payment_service/webhook")
-async def webhook(request: fastapi.Request, data: Dict[Any, Any]):
-    try:
-        logger.info(f"[WEBHOOK] Received: {data}")
-
-        api = LavaBusinessAPI(cfg.KEY)
-        sucessful_invoice_info = api.handle_webhook(data, dict(request.headers))
-        #print(sucessful_invoice_info)
-
-        try:
-            invoice_info = db.get_invoice_info(data.get("invoice_id", "UNDEFINED"))
-        except database.InvoiceNotFoundException:
-            return
-        if invoice_info.status != "created":
-            return
-
-        data.setdefault("custom_fields", "")
-        if data["custom_fields"] is None:
-            data["custom_fields"] = ""
-        custom_fields = data["custom_fields"]
-
-        invoice_info.credited = float(data.get("credited", -1))
-        invoice_info.payed = str(datetime.datetime.now())
-        invoice_info.status = "payed"
-        #print(f"Invoice info before save: {invoice_info.credited} {invoice_info.payed} {invoice_info.status}")
-        db.save_invoice_info(invoice_info)
-        _invoice_info = db.get_invoice_info(invoice_info.order_id)
-        #print(f"Invoice info after save: {_invoice_info.credited} {_invoice_info.payed} {_invoice_info.status}")
-        logger.info(f"[WEBHOOK] Invoice payed: {invoice_info.order_id} {invoice_info.creator} {invoice_info.comment}")
-
-        if invoice_info.webhook_url:
-            send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice_info, custom_fields))
-            send_webhook_thread.start()
-
-    except Exception as ex:
-        logger.exception(ex)'''
-
-
 @dataclass
 class ResponseCreateInvoice:
     status: str
@@ -221,13 +183,14 @@ class PaymentMethod:
     name: str
     description: str
     icon_url: str
+    instructions: str
 
 
 @app.get("/payment_service/methods/")
 @app.get("/payment_service/methods")
 async def get_payment_methods() -> list[PaymentMethod]:
     methods = await db.get_payment_methods_async()
-    return [PaymentMethod(m.method_id, m.name, m.description, m.icon_url) for m in methods]
+    return [PaymentMethod(m.method_id, m.name, m.description, m.icon_url, m.instructions or "") for m in methods]
 
 
 # только для тестирования

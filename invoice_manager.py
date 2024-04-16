@@ -72,6 +72,7 @@ class InvoiceManager:
             case _:
                 raise InvalidPaymentMethodError(method_id)
 
+        invoice_info.status = InvoiceStatus.PROCESSING
         invoice_info.payment_method = method.method_id
 
         await self._db_manager.save_invoice_info_async(invoice_info)

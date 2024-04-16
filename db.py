@@ -50,6 +50,7 @@ class PaymentMethod:
     name: str
     description: str
     icon_url: str
+    instructions: str | None
 
 
 class DatabaseManager:
@@ -132,7 +133,7 @@ class DatabaseManager:
                     "custom_fields VARCHAR(128) NOT NULL DEFAULT '{}', webhook_url VARCHAR(128) NOT NULL DEFAULT '', payment_method VARCHAR(32), payment_url VARCHAR(512) NOT NULL, payment_method_invoice_id VARCHAR(128), PRIMARY KEY (invoice_id));")
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS payment_methods "
-                    "(method_id VARCHAR(32) NOT NULL, name VARCHAR(64) NOT NULL, description VARCHAR(256) DEFAULT '', icon_url VARCHAR(256) NOT NULL, PRIMARY KEY (method_id));"
+                    "(method_id VARCHAR(32) NOT NULL, name VARCHAR(64) NOT NULL, description VARCHAR(256) NOT NULL DEFAULT '', icon_url VARCHAR(256) NOT NULL, instructions TEXT, PRIMARY KEY (method_id));"
                 )
                 await conn.commit()
 
