@@ -111,6 +111,36 @@ async def aaio_webhook(invoice_id=Form(), order_id=Form(), amount=Form(), curren
         send_webhook_thread.start()
 
 
+class LavaWebhook(BaseModel):
+    invoice_id: str
+    order_id: str
+    status: str
+    pay_time: str
+    amount: float
+    custom_fields: Optional[str | None] = None
+    credited: float
+
+
+@app.post("/payment_service/lava_webhook/")
+@app.post("/payment_service/lava_webhook")
+async def lava_webhook(webhook: LavaWebhook):
+    pay_time = None
+    try:
+        pay_time = datetime.datetime.strptime(webhook.pay_time, "%Y-%m-%d %H:%M:%S")
+    except ValueError as ex:
+        logger.error(f"[LAVA WEBHOOK] Failed to parse pay time '{webhook.pay_time}'", exc_info=ex)
+
+    try:
+        invoice = await invoice_manager.set_invoice_payed_async(str(webhook.order_id), float(webhook.credited), payed=pay_time, payment_method_invoice_id=str(webhook.invoice_id))
+    except Exception as ex:
+        logger.error(f"[LAVA WEBHOOK] Failed to handle: invoice_id={webhook.invoice_id}, order_id={webhook.order_id}, amount={webhook.amount}", exc_info=ex)
+        return
+
+    if invoice.webhook_url:
+        send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice,))
+        send_webhook_thread.start()
+
+
 @dataclass
 class ResponseCreateInvoice:
     status: str

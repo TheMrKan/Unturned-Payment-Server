@@ -6,6 +6,7 @@ import config
 import hashlib
 
 from AaioAsync import AaioAsync
+from lava_api.business import LavaBusinessAPI, CreateInvoiceException, InvoiceInfo as LavaInvoiceInfo
 
 
 class InvalidInvoiceStatusError(Exception):
@@ -33,12 +34,14 @@ class InvoiceManager:
     _db_manager: DatabaseManager
     _logger: logging.Logger
     _aaio: AaioAsync
+    _lava: LavaBusinessAPI
 
     def __init__(self, db_manager: DatabaseManager):
         self._db_manager = db_manager
         self._logger = logging.getLogger("payment_api_logger")
 
         self._aaio = AaioAsync(config.AAIO_API_KEY, config.AAIO_SHOP_ID, config.AAIO_KEY1)
+        self._lava = LavaBusinessAPI(config.LAVA_SECRET_KEY)
 
     @staticmethod
     def get_choose_method_url(invoice_id: str):
@@ -69,6 +72,10 @@ class InvoiceManager:
         match method.method_id:
             case "aaio":
                 invoice_info.payment_url = await self._create_aaio_invoice(invoice_info)
+            case "lava":
+                lava_invoice_info = await self._create_lava_invoice(invoice_info)
+                invoice_info.payment_url = lava_invoice_info.url
+                invoice_info.payment_method_invoice_id = lava_invoice_info.invoice_id
             case _:
                 raise InvalidPaymentMethodError(method_id)
 
@@ -87,6 +94,17 @@ class InvoiceManager:
         except Exception as ex:
             raise PaymentSystemError("aaio") from ex
 
+    async def _create_lava_invoice(self, invoice_info: InvoiceInfo) -> LavaInvoiceInfo:
+        try:
+            return await self._lava.create_invoice(invoice_info.amount, config.LAVA_SHOP_ID,
+                                                   order_id=invoice_info.invoice_id,
+                                                   comment=invoice_info.comment,
+                                                   webhook_url=config.LAVA_WEBHOOK_URL,
+                                                   success_url=config.SUCCESS_URL,
+                                                   fail_url=config.FAILED_URL)
+        except CreateInvoiceException as ex:
+            raise PaymentSystemError("lava") from ex
+
     @staticmethod
     def _get_aaio_webhook_sign(shop_id: str, amount: str, currency: str, key2: str, invoice_id: str):
         return hashlib.sha256(f"{shop_id}:{amount}:{currency}:{key2}:{invoice_id}".encode('utf-8')).hexdigest()
@@ -94,7 +112,6 @@ class InvoiceManager:
     @staticmethod
     def check_aaio_sign(sign: str, amount: str, currency: str, invoice_id: str) -> bool:
         s = InvoiceManager._get_aaio_webhook_sign(config.AAIO_SHOP_ID, amount, currency, config.AAIO_KEY2, invoice_id)
-        print(s, sign)
         return s == sign
 
     async def set_invoice_payed_async(self, invoice_id: str, credited: float | None = None, payed: datetime.datetime | None = None, payment_method_invoice_id: str | None = None) -> InvoiceInfo:
