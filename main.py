@@ -9,20 +9,32 @@ import fastapi
 import requests
 import datetime
 import os
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
 import config
 import db as database
 import logging
 from typing import Optional, Annotated
 import asyncio
-from typing import Dict, Any
 import config as cfg
 from starlette.datastructures import Headers
 from dataclasses import dataclass
+from apis import enot
+
+# настройка логгера до импорта других частей проекта, чтобы в них корректно работал logging.getLogger
+logger = logging.getLogger("payment_api_logger")
+logger.setLevel(logging.DEBUG)
+if not cfg.DEBUG:
+    fh = logging.FileHandler(f'logs/log_{datetime.datetime.now().strftime("%m-%d-%Y-%H-%M-%S")}.log')
+    fh.setFormatter(logging.Formatter(fmt='[%(asctime)s: %(levelname)s] %(message)s'))
+    fh.setLevel(logging.DEBUG)
+    logger.addHandler(fh)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+logger.addHandler(ch)
+
 from invoice_manager import InvoiceManager, InvalidInvoiceStatusError, InvalidInvoiceError, InvalidPaymentMethodError, PaymentSystemError
 
 
@@ -43,17 +55,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-logger = logging.getLogger("payment_api_logger")
-logger.setLevel(logging.DEBUG)
-if not cfg.DEBUG:
-    fh = logging.FileHandler(f'logs/log_{datetime.datetime.now().strftime("%m-%d-%Y-%H-%M-%S")}.log')
-    fh.setFormatter(logging.Formatter(fmt='[%(asctime)s: %(levelname)s] %(message)s'))
-    fh.setLevel(logging.DEBUG)
-    logger.addHandler(fh)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-logger.addHandler(ch)
 
 
 class APIException(Exception):
@@ -123,7 +124,7 @@ class LavaWebhook(BaseModel):
 
 @app.post("/payment_service/lava_webhook/")
 @app.post("/payment_service/lava_webhook")
-async def lava_webhook(webhook: LavaWebhook):
+async def lava_webhook(webhook: LavaWebhook, response: Response):
     pay_time = None
     try:
         pay_time = datetime.datetime.strptime(webhook.pay_time, "%Y-%m-%d %H:%M:%S")
@@ -134,11 +135,45 @@ async def lava_webhook(webhook: LavaWebhook):
         invoice = await invoice_manager.set_invoice_payed_async(str(webhook.order_id), float(webhook.credited), payed=pay_time, payment_method_invoice_id=str(webhook.invoice_id))
     except Exception as ex:
         logger.error(f"[LAVA WEBHOOK] Failed to handle: invoice_id={webhook.invoice_id}, order_id={webhook.order_id}, amount={webhook.amount}", exc_info=ex)
-        return
+        response.status_code = 500
+        return JSONResponse({"success": False, "error": str(ex)})
 
     if invoice.webhook_url:
         send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice,))
         send_webhook_thread.start()
+
+    response.status_code = 200
+    return JSONResponse({"success": True})
+
+
+@app.post("/payment_service/enot_webhook/")
+@app.post("/payment_service/enot_webhook")
+async def enot_webhook(webhook: enot.EnotWebhook, response: Response):
+    if webhook.status == enot.EnotWebhookStatus.success:
+        try:
+            invoice = await invoice_manager.set_invoice_payed_async(str(webhook.order_id), float(webhook.credited), payed=webhook.pay_time, payment_method_invoice_id=str(webhook.invoice_id))
+        except Exception as ex:
+            logger.error(f"[ENOT WEBHOOK] Failed to handle: invoice_id={webhook.invoice_id}, order_id={webhook.order_id}, amount={webhook.amount}", exc_info=ex)
+            response.status_code = 500
+            return JSONResponse({"success": False, "error": str(ex)})
+
+        if invoice.webhook_url:
+            send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice,))
+            send_webhook_thread.start()
+
+        response.status_code = 200
+        return JSONResponse({"success": True})
+    elif webhook.status != enot.EnotWebhookStatus.refund:
+        try:
+            status = database.InvoiceStatus.TIMEOUT if webhook.status == webhook.status.expired else database.InvoiceStatus.ERROR
+            invoice = await invoice_manager.set_invoice_status_async(str(webhook.order_id), status)
+        except Exception as ex:
+            logger.error(
+                f"[ENOT WEBHOOK] Failed to handle: status={webhook.status}, invoice_id={webhook.invoice_id}, order_id={webhook.order_id}, amount={webhook.amount}",exc_info=ex)
+            response.status_code = 500
+            return JSONResponse({"success": False, "error": str(ex)})
+        response.status_code = 200
+        return JSONResponse({"success": True})
 
 
 @dataclass

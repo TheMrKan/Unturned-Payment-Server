@@ -7,6 +7,7 @@ import hashlib
 
 from AaioAsync import AaioAsync
 from lava_api.business import LavaBusinessAPI, CreateInvoiceException, InvoiceInfo as LavaInvoiceInfo
+from apis import enot
 
 
 class InvalidInvoiceStatusError(Exception):
@@ -76,6 +77,10 @@ class InvoiceManager:
                 lava_invoice_info = await self._create_lava_invoice(invoice_info)
                 invoice_info.payment_url = lava_invoice_info.url
                 invoice_info.payment_method_invoice_id = lava_invoice_info.invoice_id
+            case "enot":
+                enot_invoice_info = await self._create_enot_invoice(invoice_info)
+                invoice_info.payment_url = enot_invoice_info.url
+                invoice_info.payment_method_invoice_id = enot_invoice_info.invoice_id
             case _:
                 raise InvalidPaymentMethodError(method_id)
 
@@ -106,6 +111,22 @@ class InvoiceManager:
             raise PaymentSystemError("lava") from ex
 
     @staticmethod
+    async def _create_enot_invoice(invoice_info: InvoiceInfo) -> enot.EnotInvoiceInfo:
+        try:
+            return await enot.create_invoice_async(
+                shop_id=config.ENOT_SHOP_ID,
+                secret_key=config.ENOT_SECRET_KEY,
+                amount=invoice_info.amount,
+                order_id=invoice_info.invoice_id,
+                hook_url=config.ENOT_WEBHOOK_URL,
+                comment=invoice_info.comment,
+                success_url=config.SUCCESS_URL,
+                fail_url=config.FAILED_URL,
+            )
+        except enot.APIError as e:
+            raise PaymentSystemError("enot") from e
+
+    @staticmethod
     def _get_aaio_webhook_sign(shop_id: str, amount: str, currency: str, key2: str, invoice_id: str):
         return hashlib.sha256(f"{shop_id}:{amount}:{currency}:{key2}:{invoice_id}".encode('utf-8')).hexdigest()
 
@@ -130,5 +151,26 @@ class InvoiceManager:
         await self._db_manager.save_invoice_info_async(invoice_info)
 
         self._logger.info(f"Invoice payed: {invoice_info}")
+
+        return invoice_info
+
+    async def set_invoice_status_async(self, invoice_id: str, status: InvoiceStatus) -> InvoiceInfo:
+        if status == InvoiceStatus.SUCCESS:
+            return await self.set_invoice_payed_async(invoice_id)
+
+        invoice_info = await self._db_manager.get_invoice_info_async(invoice_id)
+        if invoice_info is None:
+            raise InvalidInvoiceError(invoice_id)
+
+        if invoice_info.status == InvoiceStatus.SUCCESS or invoice_info.status == InvoiceStatus.ERROR:
+            raise InvalidInvoiceStatusError(invoice_info.invoice_id, invoice_info.status)
+
+        invoice_info.status = status
+        invoice_info.credited = 0
+        invoice_info.payed = None
+
+        await self._db_manager.save_invoice_info_async(invoice_info)
+
+        self._logger.info("Invoice status updated: [%s] %s", status, invoice_id)
 
         return invoice_info
