@@ -23,9 +23,9 @@ class APIError(Exception):
     error_text: str
     status_code: int
     def __init__(self, response: dict):
-        self.error_text = response.get("error", "")
+        self.error_text = response.get("error", "Unknown error")
         self.status_code = int(response.get("status", 0))
-        super().__init__()
+        super().__init__(f"({self.status_code}) {self.error_text}")
 
 
 # https://docs.enot.io/e/new/create-invoice
@@ -60,11 +60,11 @@ async def create_invoice_async(
         data["hook_url"] = hook_url
     if custom_fields is not None:
         data["custom_fields"] = custom_fields
-    if comment is not None:
+    if comment:    # пустую строку передавать нельзя
         data["comment"] = comment
-    if fail_url is not None:
+    if fail_url:
         data["fail_url"] = fail_url
-    if success_url is not None:
+    if success_url:
         data["success_url"] = success_url
     if expire_minutes is not None:
         data["expire"] = expire_minutes
@@ -144,7 +144,7 @@ class EnotWebhook(BaseModel):
     order_id: str
     pay_service: str | None = None
     payer_details: str | None = None
-    custom_fields: str
+    custom_fields: str | None = None
     type: EnotWebhookType
     credited: str | None = None
     pay_time: datetime.datetime | None = None
