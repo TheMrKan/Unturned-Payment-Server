@@ -1,4 +1,4 @@
-from db import DatabaseManager, InvoiceInfo, InvoiceStatus
+from db import DatabaseManager, InvoiceInfo, InvoiceStatus, PaymentMethod
 import uuid
 import datetime
 import logging
@@ -70,6 +70,8 @@ class InvoiceManager:
         if method is None:
             raise InvalidPaymentMethodError(method_id)
 
+        invoice_info.status = InvoiceStatus.PROCESSING
+
         match method.method_id:
             case "aaio":
                 invoice_info.payment_url = await self._create_aaio_invoice(invoice_info)
@@ -82,9 +84,8 @@ class InvoiceManager:
                 invoice_info.payment_url = enot_invoice_info.url
                 invoice_info.payment_method_invoice_id = enot_invoice_info.invoice_id
             case _:
-                raise InvalidPaymentMethodError(method_id)
+                await self._delegate_invoice_async(invoice_info, method)
 
-        invoice_info.status = InvoiceStatus.PROCESSING
         invoice_info.payment_method = method.method_id
 
         await self._db_manager.save_invoice_info_async(invoice_info)
@@ -125,6 +126,12 @@ class InvoiceManager:
             )
         except enot.APIError as e:
             raise PaymentSystemError("enot") from e
+
+    @staticmethod
+    async def _delegate_invoice_async(invoice_info: InvoiceInfo, method: PaymentMethod):
+        invoice_info.payment_url = method.delegate_url
+        invoice_info.status = InvoiceStatus.DELEGATED
+
 
     @staticmethod
     def _get_aaio_webhook_sign(shop_id: str, amount: str, currency: str, key2: str, invoice_id: str):

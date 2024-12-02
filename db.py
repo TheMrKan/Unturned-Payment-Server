@@ -23,6 +23,7 @@ class InvoiceStatus(Enum):
     SUCCESS = "success"
     ERROR = "error"
     TIMEOUT = "timeout"
+    DELEGATED = "delegated"
 
 
 @dataclass
@@ -51,6 +52,7 @@ class PaymentMethod:
     description: str
     icon_url: str
     instructions: str | None
+    delegate_url: str = ""
 
 
 class DatabaseManager:
