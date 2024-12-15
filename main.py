@@ -9,8 +9,9 @@ import fastapi
 import requests
 import datetime
 import os
-from fastapi import FastAPI, Request, Form, Response
+from fastapi import FastAPI, Request, Form, Response, Query
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import config
@@ -21,7 +22,7 @@ import asyncio
 import config as cfg
 from starlette.datastructures import Headers
 from dataclasses import dataclass
-from apis import enot
+from apis import enot, nicepay
 
 # настройка логгера до импорта других частей проекта, чтобы в них корректно работал logging.getLogger
 logger = logging.getLogger("payment_api_logger")
@@ -170,6 +171,38 @@ async def enot_webhook(webhook: enot.EnotWebhook, response: Response):
         except Exception as ex:
             logger.error(
                 f"[ENOT WEBHOOK] Failed to handle: status={webhook.status}, invoice_id={webhook.invoice_id}, order_id={webhook.order_id}, amount={webhook.amount}",exc_info=ex)
+            response.status_code = 500
+            return JSONResponse({"success": False, "error": str(ex)})
+        response.status_code = 200
+        return JSONResponse({"success": True})
+
+
+@app.get("/payment_service/nicepay_webhook/")
+@app.get("/payment_service/nicepay_webhook")
+async def nicepay_webhook(request: Request, webhook: Annotated[nicepay.NicepayWebhook, Query()], response: Response):
+    if not nicepay.is_hash_valid(config.NICEPAY_SECRET_KEY, dict(request.query_params)):
+        raise HTTPException(status_code=401, detail="Invalid hash")
+
+    if webhook.result == nicepay.WebhookInvoiceStatus.success:
+        try:
+            invoice = await invoice_manager.set_invoice_payed_async(str(webhook.order_id), float(webhook.profit), payment_method_invoice_id=webhook.payment_id)
+        except Exception as ex:
+            logger.error(f"[NICEPAY WEBHOOK] Failed to handle: payment_id={webhook.payment_id}, order_id={webhook.order_id}, amount={webhook.amount}", exc_info=ex)
+            response.status_code = 500
+            return JSONResponse({"success": False, "error": str(ex)})
+
+        if invoice.webhook_url:
+            send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice,))
+            send_webhook_thread.start()
+
+        response.status_code = 200
+        return JSONResponse({"success": True})
+    else:
+        try:
+            invoice = await invoice_manager.set_invoice_status_async(webhook.order_id, database.InvoiceStatus.ERROR)
+        except Exception as ex:
+            logger.error(
+                f"[NICEPAY WEBHOOK] Failed to handle: status={webhook.result}, payment_id={webhook.payment_id}, order_id={webhook.order_id}, amount={webhook.amount}",exc_info=ex)
             response.status_code = 500
             return JSONResponse({"success": False, "error": str(ex)})
         response.status_code = 200

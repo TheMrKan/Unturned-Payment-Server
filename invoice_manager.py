@@ -7,7 +7,7 @@ import hashlib
 
 from AaioAsync import AaioAsync
 from lava_api.business import LavaBusinessAPI, CreateInvoiceException, InvoiceInfo as LavaInvoiceInfo
-from apis import enot
+from apis import enot, nicepay
 
 
 class InvalidInvoiceStatusError(Exception):
@@ -83,6 +83,10 @@ class InvoiceManager:
                 enot_invoice_info = await self._create_enot_invoice(invoice_info)
                 invoice_info.payment_url = enot_invoice_info.url
                 invoice_info.payment_method_invoice_id = enot_invoice_info.invoice_id
+            case "nicepay":
+                nicepay_invoice_info = await self._create_nicepay_invoice(invoice_info)
+                invoice_info.payment_url = nicepay_invoice_info.link
+                invoice_info.payment_method_invoice_id = nicepay_invoice_info.payment_id
             case _:
                 await self._delegate_invoice_async(invoice_info, method)
 
@@ -126,6 +130,22 @@ class InvoiceManager:
             )
         except enot.APIError as e:
             raise PaymentSystemError("enot") from e
+
+    @staticmethod
+    async def _create_nicepay_invoice(invoice_info: InvoiceInfo) -> nicepay.NicepayInvoiceInfo:
+        try:
+            return await nicepay.create_invoice_async(config.NICEPAY_MERCHANT_ID,
+                                                      config.NICEPAY_SECRET_KEY,
+                                                      invoice_info.invoice_id,
+                                                      "customer@untstrong.ru",
+                                                      invoice_info.amount,
+                                                      "RUB",
+                                                      description=invoice_info.comment,
+                                                      success_url=config.SUCCESS_URL,
+                                                      fail_url=config.FAILED_URL,
+                                                      )
+        except nicepay.APIError as e:
+            raise PaymentSystemError("nicepay") from e
 
     @staticmethod
     async def _delegate_invoice_async(invoice_info: InvoiceInfo, method: PaymentMethod):
