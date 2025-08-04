@@ -7,7 +7,7 @@ import hashlib
 
 from AaioAsync import AaioAsync
 from lava_api.business import LavaBusinessAPI, CreateInvoiceException, InvoiceInfo as LavaInvoiceInfo
-from apis import enot, nicepay
+from apis import enot, nicepay, pally
 
 
 class InvalidInvoiceStatusError(Exception):
@@ -87,6 +87,10 @@ class InvoiceManager:
                 nicepay_invoice_info = await self._create_nicepay_invoice(invoice_info)
                 invoice_info.payment_url = nicepay_invoice_info.link
                 invoice_info.payment_method_invoice_id = nicepay_invoice_info.payment_id
+            case "pally":
+                pally_invoice_info = await self._create_pally_invoice(invoice_info)
+                invoice_info.payment_url = pally_invoice_info.url
+                invoice_info.payment_method_invoice_id = pally_invoice_info.id
             case _:
                 await self._delegate_invoice_async(invoice_info, method)
 
@@ -148,10 +152,23 @@ class InvoiceManager:
             raise PaymentSystemError("nicepay") from e
 
     @staticmethod
+    async def _create_pally_invoice(invoice_info: InvoiceInfo) -> pally.PallyBillInfo:
+        try:
+            return await pally.create_bill_async(
+                config.PALLY_SHOP_ID,
+                config.PALLY_SECRET_KEY,
+                invoice_info.amount,
+                invoice_info.invoice_id,
+                invoice_info.comment,
+                invoice_info.comment,
+            )
+        except pally.APIError as e:
+            raise PaymentSystemError("pally") from e
+
+    @staticmethod
     async def _delegate_invoice_async(invoice_info: InvoiceInfo, method: PaymentMethod):
         invoice_info.payment_url = method.delegate_url
         invoice_info.status = InvoiceStatus.DELEGATED
-
 
     @staticmethod
     def _get_aaio_webhook_sign(shop_id: str, amount: str, currency: str, key2: str, invoice_id: str):

@@ -22,7 +22,7 @@ import asyncio
 import config as cfg
 from starlette.datastructures import Headers
 from dataclasses import dataclass
-from apis import enot, nicepay
+from apis import enot, nicepay, pally
 
 # настройка логгера до импорта других частей проекта, чтобы в них корректно работал logging.getLogger
 logger = logging.getLogger("payment_api_logger")
@@ -203,6 +203,48 @@ async def nicepay_webhook(request: Request, webhook: Annotated[nicepay.NicepayWe
         except Exception as ex:
             logger.error(
                 f"[NICEPAY WEBHOOK] Failed to handle: status={webhook.result}, payment_id={webhook.payment_id}, order_id={webhook.order_id}, amount={webhook.amount}",exc_info=ex)
+            response.status_code = 500
+            return JSONResponse({"success": False, "error": str(ex)})
+        response.status_code = 200
+        return JSONResponse({"success": True})
+
+
+@app.post("/payment_service/pally_webhook/")
+@app.post("/payment_service/pally_webhook")
+async def pally_webhook(request: Request, webhook: Annotated[pally.PostbackForm, Form()], response: Response):
+    if not pally.is_signature_valid(webhook.SignatureValue, webhook.OutSum, webhook.InvId):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    if webhook.Status in ("SUCCESS", "OVERPAID"):
+        try:
+            invoice = await invoice_manager.set_invoice_payed_async(
+                str(webhook.InvId),
+                float(webhook.OutSum),
+            )
+        except Exception as ex:
+            logger.error(
+                f"[PALLY WEBHOOK] Failed to handle: InvId={webhook.InvId}, OutSum={webhook.OutSum}",
+                exc_info=ex,
+            )
+            response.status_code = 500
+            return JSONResponse({"success": False, "error": str(ex)})
+
+        if invoice.webhook_url:
+            send_webhook_thread = threading.Thread(target=send_webhook, args=(invoice,))
+            send_webhook_thread.start()
+
+        response.status_code = 200
+        return JSONResponse({"success": True})
+    else:
+        try:
+            invoice = await invoice_manager.set_invoice_status_async(
+                webhook.InvId, database.InvoiceStatus.ERROR
+            )
+        except Exception as ex:
+            logger.error(
+                f"[PALLY WEBHOOK] Failed to handle: Status={webhook.Status}, InvId={webhook.InvId}, ErrorCode={webhook.ErrorCode}, ErrorMessage={webhook.ErrorMessage}",
+                exc_info=ex,
+            )
             response.status_code = 500
             return JSONResponse({"success": False, "error": str(ex)})
         response.status_code = 200
